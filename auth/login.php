@@ -22,3 +22,31 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
 }
 ?>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Student Management System</title>
+    <link rel="stylesheet" href="../assets/css/style.css">
+</head>
+<body>
+    <div class="login-container">
+        <form action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]); ?>" method="post">
+            <h2>Login</h2>
+            <?php if(!empty($login_err)): ?>
+                <div class="alert alert-danger"><?php echo $login_err; ?></div>
+            <?php endif; ?>
+            <div class="form-group">
+                <input type="text" name="username" placeholder="Username" required>
+            </div>
+            <div class="form-group">
+                <input type="password" name="password" placeholder="Password" required>
+            </div>
+            <button type="submit" class="btn-primary">Login</button>
+            <p>Don't have an account? <a href="register.php">Register here</a></p>
+        </form>
+    </div>
+</body>
+</html>
