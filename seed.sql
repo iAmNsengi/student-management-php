@@ -49,3 +49,32 @@ CREATE TABLE Grades (
     FOREIGN KEY (student_id) REFERENCES Students(id),
     FOREIGN KEY (course_id) REFERENCES Courses(id)
 );
+
+CREATE TABLE Files (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    filename VARCHAR(255) NOT NULL,
+    type ENUM('assignment', 'material', 'profile') NOT NULL,
+    related_id INT NOT NULL,
+    upload_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE Messages (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    sender_id INT NOT NULL,
+    receiver_id INT NOT NULL,
+    subject VARCHAR(255) NOT NULL,
+    content TEXT NOT NULL,
+    sent_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    read_status BOOLEAN DEFAULT FALSE,
+    FOREIGN KEY (sender_id) REFERENCES Users(id),
+    FOREIGN KEY (receiver_id) REFERENCES Users(id)
+);
+
+CREATE TABLE Announcements (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    title VARCHAR(255) NOT NULL,
+    content TEXT NOT NULL,
+    created_by INT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (created_by) REFERENCES Users(id)
+);
