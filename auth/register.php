@@ -3,6 +3,12 @@ session_start();
 require_once "../config/database.php";
 require_once "../models/User.php";
 
+// Check if the user is logged in, if not then redirect to home page
+if (isset($_SESSION['user_id'])) {
+    header("Location: ../index.php");
+    exit;
+}
+
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $database = new Database();
     $db = $database->getConnection();
