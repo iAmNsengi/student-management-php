@@ -113,54 +113,31 @@ if (!isset($_SESSION['user_id'])) {
       <figure class="logo fixed_flex">
             <img src="https://i.postimg.cc/02NrFwT5/canva.png" alt="">
             <figcaption>
-                <strong class="title">Schotest</strong> Public School
+                <strong class="title">IGITI</strong>Student Management
             </figcaption>
         </figure>
-        <a href="#">
-            <i class="fa fa-map-marker"></i>
-            Plot No: 431 First floor, Kakrola Housing Complex, Opp Pillar No: 794, , Near Dwarka More Metro Station, Delhi 110078. 
-        </a>
+        
         <a href="emailto:info@schotest.com">
             <i class="fa fa-envelope-o"></i>
-            info@schotest.com
+            info@igiti.com
         </a>
-        <a href="tel:9315514145">
+        <a href="tel:12345678">
             <i class="fa fa-headphones"></i>
-            9315514145
+            12345678
         </a>
     </section>
     <section class="flex_content padding_1x">
       <h3>Quick Links</h3>
-      <a href="#">Admission</a>
-      <a href="#">Prospectus</a>
-      <a href="#">Student registration</a>
-      <a href="#">Staff registration</a>
+      <a href="index.php">Home</a>
+      <a href="dashboard.php">Dashboard</a>
+      <a href="auth/login.php">Login</a>
+      <a href="auth/register.php">Register</a>
     </section>
-    <section class="flex_content padding_1x">
-      <h3>Other Links</h3>
-      <a href="#">About us</a>
-      <a href="#">contact us</a>
-      <a href="#">Raise a ticket</a>
-      <a href="#">Terms & conditions</a>
-    </section>
-    <section class="flex_content padding_1x">
-      <h3>Newsletter</h3>
-      <p>You can trust us. we only send important notifications related to school.</p>
-      <fieldset class="fixed_flex">
-        <input type="email" name="newsletter" placeholder="Your Email Address">
-        <button class="btn btn_2">Subscribe</button>
-      </fieldset>
-    </section>
+
   </div>
   <div class="flex">
     <section class="flex-content padding_1x">
-      <p>Copyright ©2023 All rights reserved || website name</p>
-    </section>
-    <section class="flex-content padding_1x">
-      <a href="#"><i class="fa fa-facebook"></i></a>
-      <a href="#"><i class="fa fa-twitter"></i></a>
-      <a href="#"><i class="fa fa-dribbble"></i></a>
-      <a href="#"><i class="fa fa-linkedin"></i></a>
+      <p>Copyright ©2025 All rights reserved, <b> IGITI </b> Student Management</p>
     </section>
   </div>
 </footer>
