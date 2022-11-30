@@ -147,6 +147,7 @@ if (!isset($_SESSION['user_id'])) {
 <div class="overlay"></div>
 <div class="cursor"></div>
 
+<script src="./scripts/home.js"></script>
 </body>
 
 </html>
