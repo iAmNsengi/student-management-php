@@ -51,13 +51,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Register - Student Management System</title>
     <link rel="stylesheet" href="../assets/css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 </head>
 <body>
     <div class="login-container">
         <form action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]); ?>" method="post">
-            <h2>Register</h2>
+            <h2>Create Account</h2>
             <?php if ($error_message): ?>
                 <div class="error-message"><?php echo $error_message; ?></div>
             <?php endif; ?>
@@ -72,26 +74,39 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             </div>
             <div class="form-group">
                 <select name="role" id="role" required>
-                    <option value="">Select Role</option>
+                    <option value="">Select your role</option>
                     <option value="Student">Student</option>
                     <option value="Teacher">Teacher</option>
                 </select>
             </div>
             <div class="form-group student-fields" style="display:none;">
-                <input type="text" name="class" placeholder="Class">
+                <input type="text" name="class" placeholder="Enter your class">
             </div>
             <div class="form-group teacher-fields" style="display:none;">
-                <input type="text" name="department" placeholder="Department">
+                <input type="text" name="department" placeholder="Enter your department">
             </div>
-            <button type="submit" class="btn-primary">Register</button>
+            <button type="submit" class="btn-primary">Create Account</button>
+            <div class="login-link">
+                Already have an account? <a href="login.php">Login here</a>
+            </div>
         </form>
     </div>
+
     <script>
         document.getElementById('role').addEventListener('change', function() {
-            document.querySelector('.student-fields').style.display = 
-                this.value === 'Student' ? 'block' : 'none';
-            document.querySelector('.teacher-fields').style.display = 
-                this.value === 'Teacher' ? 'block' : 'none';
+            const studentFields = document.querySelector('.student-fields');
+            const teacherFields = document.querySelector('.teacher-fields');
+            
+            studentFields.style.display = this.value === 'Student' ? 'block' : 'none';
+            teacherFields.style.display = this.value === 'Teacher' ? 'block' : 'none';
+            
+            if (this.value === 'Student') {
+                document.querySelector('[name="class"]').required = true;
+                document.querySelector('[name="department"]').required = false;
+            } else if (this.value === 'Teacher') {
+                document.querySelector('[name="class"]').required = false;
+                document.querySelector('[name="department"]').required = true;
+            }
         });
     </script>
 </body>
