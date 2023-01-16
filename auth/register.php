@@ -9,6 +9,8 @@ if (isset($_SESSION['user_id'])) {
     exit;
 }
 
+$error_message = ""; // Variable to hold error messages
+
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $database = new Database();
     $db = $database->getConnection();
@@ -18,22 +20,29 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $user->password = $_POST['password'];
     $user->role = $_POST['role'];
     
-    if($user->create()) {
-        $user_id = $db->lastInsertId();
-        
-        // Create corresponding entry in Students or Teachers table
-        if($user->role == 'Student') {
-            $query = "INSERT INTO Students (user_id, full_name, class) VALUES (?, ?, ?)";
-            $stmt = $db->prepare($query);
-            $stmt->execute([$user_id, $_POST['full_name'], $_POST['class']]);
-        } elseif($user->role == 'Teacher') {
-            $query = "INSERT INTO Teachers (user_id, full_name, department) VALUES (?, ?, ?)";
-            $stmt = $db->prepare($query);
-            $stmt->execute([$user_id, $_POST['full_name'], $_POST['department']]);
+    // Check if the username already exists
+    if ($user->usernameExists()) {
+        $error_message = "Username already exists. Please choose another.";
+    } else {
+        if($user->create()) {
+            $user_id = $db->lastInsertId();
+            
+            // Create corresponding entry in Students or Teachers table
+            if($user->role == 'Student') {
+                $query = "INSERT INTO Students (user_id, full_name, class) VALUES (?, ?, ?)";
+                $stmt = $db->prepare($query);
+                $stmt->execute([$user_id, $_POST['full_name'], $_POST['class']]);
+            } elseif($user->role == 'Teacher') {
+                $query = "INSERT INTO Teachers (user_id, full_name, department) VALUES (?, ?, ?)";
+                $stmt = $db->prepare($query);
+                $stmt->execute([$user_id, $_POST['full_name'], $_POST['department']]);
+            }
+            
+            header("Location: login.php");
+            exit();
+        } else {
+            $error_message = "An error occurred while registering. Please try again.";
         }
-        
-        header("Location: login.php");
-        exit();
     }
 }
 ?>
@@ -49,6 +58,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <div class="login-container">
         <form action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]); ?>" method="post">
             <h2>Register</h2>
+            <?php if ($error_message): ?>
+                <div class="error-message"><?php echo $error_message; ?></div>
+            <?php endif; ?>
             <div class="form-group">
                 <input type="text" name="username" placeholder="Username" required>
             </div>

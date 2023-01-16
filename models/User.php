@@ -12,6 +12,17 @@ class User {
         $this->conn = $db;
     }
 
+    // Method to check if the username already exists
+    public function usernameExists() {
+        $query = "SELECT id FROM " . $this->table_name . " WHERE username = :username LIMIT 1";
+        $stmt = $this->conn->prepare($query);
+        $stmt->bindParam(':username', $this->username);
+        $stmt->execute();
+
+        // If a row is returned, the username exists
+        return $stmt->rowCount() > 0;
+    }
+
     public function create() {
         $query = "INSERT INTO " . $this->table_name . " 
                  SET username=:username, password=:password, role=:role";
