@@ -39,7 +39,7 @@ if (!isset($_SESSION['user_id'])) {
         <figure class="logo fixed_flex">
             <img src="https://i.postimg.cc/02NrFwT5/canva.png" alt="">
             <figcaption>
-                <strong class="title">IGITI</strong> Student Management
+                <strong class="title">WSB</strong> Student Management
             </figcaption>
         </figure>
     </section>
@@ -70,8 +70,8 @@ if (!isset($_SESSION['user_id'])) {
 <!--HEADER-->
 <header class="flex">
     <article>
-        <h1 class="title big">Welcome to <br><em>IGITI</em> School Management</h1>
-        <p>Welcome to IGITI School Management System, where we streamline the educational experience for students, parents, and educators alike. Our platform offers a comprehensive suite of tools designed to enhance communication, simplify administrative tasks, and foster a collaborative learning environment. From real-time notifications to easy access to academic resources, we are committed to providing a seamless and efficient experience for everyone involved in the educational journey.</p>
+        <h1 class="title big">Welcome to <br><em>WSB</em> School Management</h1>
+        <p>Welcome to WSB School Management System, where we streamline the educational experience for students, parents, and educators alike. Our platform offers a comprehensive suite of tools designed to enhance communication, simplify administrative tasks, and foster a collaborative learning environment. From real-time notifications to easy access to academic resources, we are committed to providing a seamless and efficient experience for everyone involved in the educational journey.</p>
         <a href="#" class="btn btn_3">Explore more</a>
     </article>
     <section class="flex">
@@ -113,13 +113,13 @@ if (!isset($_SESSION['user_id'])) {
       <figure class="logo fixed_flex">
             <img src="https://i.postimg.cc/02NrFwT5/canva.png" alt="">
             <figcaption>
-                <strong class="title">IGITI</strong>Student Management
+                <strong class="title">WSB</strong>Student Management
             </figcaption>
         </figure>
         
         <a href="emailto:info@schotest.com">
             <i class="fa fa-envelope-o"></i>
-            info@igiti.com
+            info@WSB.com
         </a>
         <a href="tel:12345678">
             <i class="fa fa-headphones"></i>
@@ -137,7 +137,7 @@ if (!isset($_SESSION['user_id'])) {
   </div>
   <div class="flex">
     <section class="flex-content padding_1x">
-      <p>Copyright ©2025 All rights reserved, <b> IGITI </b> Student Management</p>
+      <p>Copyright ©2025 All rights reserved, <b> WSB </b> Student Management</p>
     </section>
   </div>
 </footer>
