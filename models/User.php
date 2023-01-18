@@ -48,4 +48,32 @@ class User {
         
         return $stmt;
     }
+
+    // Add these methods to the User class
+    
+    public function isTeacher() {
+        return $this->role === 'Teacher';
+    }
+    
+    public function isStudent() {
+        return $this->role === 'Student';
+    }
+    
+    public function getProfile() {
+        if ($this->isStudent()) {
+            $query = "SELECT s.*, u.username, u.role 
+                     FROM Students s 
+                     JOIN Users u ON s.user_id = u.id 
+                     WHERE u.id = ?";
+        } else {
+            $query = "SELECT t.*, u.username, u.role 
+                     FROM Teachers t 
+                     JOIN Users u ON t.user_id = u.id 
+                     WHERE u.id = ?";
+        }
+        
+        $stmt = $this->conn->prepare($query);
+        $stmt->execute([$this->id]);
+        return $stmt->fetch(PDO::FETCH_ASSOC);
+    }
 }
