@@ -263,8 +263,125 @@ $profile = $user->getProfile();
         }
     }
 
-    // Load initial data
-    loadPanelData('overview');
+    // Update dashboard cards with actual data
+    async function updateDashboardCards(data) {
+        if (document.getElementById('courses-count')) {
+            const coursesResponse = await fetch('api/endpoints.php?endpoint=view_courses');
+            const coursesData = await coursesResponse.json();
+            document.getElementById('courses-count').textContent = coursesData.length;
+        }
+        
+        if (document.getElementById('average-grade')) {
+            const gradesResponse = await fetch('api/endpoints.php?endpoint=view_grades');
+            const gradesData = await gradesResponse.json();
+            const average = gradesData.reduce((acc, curr) => acc + parseFloat(curr.grade), 0) / gradesData.length;
+            document.getElementById('average-grade').textContent = average.toFixed(2) + '%';
+        }
+        
+        if (document.getElementById('attendance-rate')) {
+            const attendanceResponse = await fetch('api/endpoints.php?endpoint=view_attendance');
+            const attendanceData = await attendanceResponse.json();
+            const presentCount = attendanceData.filter(a => a.status === 'present').length;
+            const rate = (presentCount / attendanceData.length) * 100;
+            document.getElementById('attendance-rate').textContent = rate.toFixed(2) + '%';
+        }
+        
+        // Teacher-specific cards
+        if (document.getElementById('students-count')) {
+            const studentsResponse = await fetch('api/endpoints.php?endpoint=view_students');
+            const studentsData = await studentsResponse.json();
+            document.getElementById('students-count').textContent = studentsData.length;
+        }
+        
+        if (document.getElementById('active-courses')) {
+            const coursesResponse = await fetch('api/endpoints.php?endpoint=view_courses');
+            const coursesData = await coursesResponse.json();
+            document.getElementById('active-courses').textContent = coursesData.length;
+        }
+        
+        if (document.getElementById('today-classes')) {
+            const todayResponse = await fetch('api/endpoints.php?endpoint=view_today_classes');
+            const todayData = await todayResponse.json();
+            document.getElementById('today-classes').textContent = todayData.length;
+        }
+    }
+
+    // Update overview chart
+    function updateOverviewChart(data) {
+        const ctx = document.getElementById('overview-chart').getContext('2d');
+        
+        // Destroy existing chart if it exists
+        if (window.overviewChart) {
+            window.overviewChart.destroy();
+        }
+        
+        // Create new chart based on user role
+        if (document.getElementById('average-grade')) {
+            // Student chart
+            window.overviewChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.map(item => item.course_name),
+                    datasets: [{
+                        label: 'Grades by Course',
+                        data: data.map(item => item.grade),
+                        borderColor: 'rgb(75, 192, 192)',
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100
+                        }
+                    }
+                }
+            });
+        } else {
+            // Teacher chart
+            window.overviewChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Assignments', 'Attendance', 'Average Grade'],
+                    datasets: [{
+                        label: 'Class Statistics',
+                        data: [
+                            data.assignments_completed,
+                            data.attendance_rate,
+                            data.class_average
+                        ],
+                        backgroundColor: [
+                            'rgba(255, 99, 132, 0.2)',
+                            'rgba(54, 162, 235, 0.2)',
+                            'rgba(75, 192, 192, 0.2)'
+                        ],
+                        borderColor: [
+                            'rgba(255, 99, 132, 1)',
+                            'rgba(54, 162, 235, 1)',
+                            'rgba(75, 192, 192, 1)'
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100
+                        }
+                    }
+                }
+            });
+        }
+    }
+
+    // Load initial data when page loads
+    document.addEventListener('DOMContentLoaded', () => {
+        loadPanelData('overview');
+    });
     </script>
 
     <style>
