@@ -130,10 +130,55 @@ switch ($endpoint) {
         echo json_encode($data);
         break;
 
-    case 'create_course':
+    case 'update_profile':
+        error_log('Profile update attempt - User ID: ' . $_SESSION['user_id'] . ', Role: ' . $role);
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             http_response_code(405);
             echo json_encode(['error' => 'Method not allowed']);
+            exit;
+        }
+        
+        $data = json_decode(file_get_contents('php://input'), true);
+        
+        if (!isset($data['full_name'])) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Missing required fields']);
+            exit;
+        }
+        
+        try {
+            if ($role === 'Student') {
+                $query = "UPDATE Students SET full_name = :full_name WHERE user_id = :user_id";
+            } else {
+                $query = "UPDATE Teachers SET full_name = :full_name WHERE user_id = :user_id";
+            }
+            
+            $stmt = $db->prepare($query);
+            $stmt->bindParam(':full_name', $data['full_name']);
+            $stmt->bindParam(':user_id', $_SESSION['user_id']);
+            
+            if ($stmt->execute()) {
+                echo json_encode(['success' => true, 'message' => 'Profile updated successfully']);
+            } else {
+                echo json_encode(['success' => false, 'message' => 'Failed to update profile']);
+            }
+        } catch (PDOException $e) {
+            http_response_code(500);
+            echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
+        }
+        break;
+
+    case 'create_course':
+        error_log('Course creation attempt - User ID: ' . $_SESSION['user_id'] . ', Role: ' . $role);
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            http_response_code(405);
+            echo json_encode(['error' => 'Method not allowed']);
+            exit;
+        }
+        
+        if ($role !== 'Teacher') {
+            http_response_code(403);
+            echo json_encode(['error' => 'Only teachers can create courses']);
             exit;
         }
         
@@ -141,13 +186,51 @@ switch ($endpoint) {
         $course = new Course($db);
         
         $data = json_decode(file_get_contents('php://input'), true);
-        $result = $course->createCourse(
-            $data['name'],
-            $_SESSION['user_id'],
-            $data['schedule']
-        );
         
-        echo json_encode(['success' => $result]);
+        if (!isset($data['name']) || !isset($data['schedule'])) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Missing required fields']);
+            exit;
+        }
+        
+        // Get the teacher's user_id from the session
+        $teacher_id = $_SESSION['user_id'];
+        
+        // First, verify that this user is actually a teacher
+        $verify_query = "SELECT id FROM Teachers WHERE user_id = ?";
+        $verify_stmt = $db->prepare($verify_query);
+        $verify_stmt->execute([$teacher_id]);
+        
+        if ($verify_stmt->rowCount() === 0) {
+            http_response_code(403);
+            echo json_encode(['error' => 'User is not a teacher']);
+            exit;
+        }
+        
+        try {
+            // Insert the course
+            $query = "INSERT INTO Courses (name, teacher_id, schedule) VALUES (?, ?, ?)";
+            $stmt = $db->prepare($query);
+            
+            if ($stmt->execute([$data['name'], $teacher_id, $data['schedule']])) {
+                echo json_encode([
+                    'success' => true,
+                    'message' => 'Course created successfully',
+                    'id' => $db->lastInsertId()
+                ]);
+            } else {
+                echo json_encode([
+                    'success' => false,
+                    'message' => 'Failed to create course'
+                ]);
+            }
+        } catch (PDOException $e) {
+            http_response_code(500);
+            echo json_encode([
+                'success' => false,
+                'message' => 'Database error: ' . $e->getMessage()
+            ]);
+        }
         break;
 
     default:

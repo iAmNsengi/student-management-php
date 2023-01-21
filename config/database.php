@@ -19,6 +19,7 @@ class Database {
                 $this->password
             );
             $this->conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+            $this->conn->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
         } catch(PDOException $e) {
             // If database doesn't exist, create it
             if ($e->getCode() == 1049) {
@@ -53,5 +54,21 @@ class Database {
         }
         
         return $this->conn;
+    }
+
+    // Add this method to help with debugging
+    public function testConnection() {
+        try {
+            $this->getConnection();
+            return [
+                'success' => true,
+                'message' => 'Database connection successful'
+            ];
+        } catch (Exception $e) {
+            return [
+                'success' => false,
+                'message' => $e->getMessage()
+            ];
+        }
     }
 }

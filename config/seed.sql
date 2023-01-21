@@ -1,49 +1,65 @@
 CREATE TABLE IF NOT EXISTS Users (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    username VARCHAR(50) NOT NULL UNIQUE,
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    username VARCHAR(50) UNIQUE NOT NULL,
     password VARCHAR(255) NOT NULL,
-    role ENUM('Admin', 'Teacher', 'Student', 'Parent') NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS Students (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    user_id INT NOT NULL,
-    full_name VARCHAR(100),
-    class VARCHAR(20),
-    FOREIGN KEY (user_id) REFERENCES Users(id)
+    role ENUM('Student', 'Teacher') NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS Teachers (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    user_id INT NOT NULL,
-    full_name VARCHAR(100),
-    department VARCHAR(50),
-    FOREIGN KEY (user_id) REFERENCES Users(id)
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    user_id INT UNIQUE NOT NULL,
+    full_name VARCHAR(100) NOT NULL,
+    department VARCHAR(100),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES Users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS Students (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    user_id INT UNIQUE NOT NULL,
+    full_name VARCHAR(100) NOT NULL,
+    class VARCHAR(50),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES Users(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS Courses (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(100),
-    teacher_id INT,
-    schedule VARCHAR(50),
-    FOREIGN KEY (teacher_id) REFERENCES Teachers(id)
-);
-
-CREATE TABLE IF NOT EXISTS Attendance (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    student_id INT,
-    date DATE,
-    status ENUM('Present', 'Absent'),
-    FOREIGN KEY (student_id) REFERENCES Students(id)
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    name VARCHAR(255) NOT NULL,
+    teacher_id INT NOT NULL,
+    schedule VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (teacher_id) REFERENCES Users(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS Grades (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    student_id INT,
-    course_id INT,
-    grade FLOAT,
-    FOREIGN KEY (student_id) REFERENCES Students(id),
-    FOREIGN KEY (course_id) REFERENCES Courses(id)
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    student_id INT NOT NULL,
+    course_id INT NOT NULL,
+    grade DECIMAL(5,2) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (student_id) REFERENCES Students(id) ON DELETE CASCADE,
+    FOREIGN KEY (course_id) REFERENCES Courses(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS Attendance (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    student_id INT NOT NULL,
+    date DATE NOT NULL,
+    status ENUM('present', 'absent', 'late') NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (student_id) REFERENCES Students(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_attendance (student_id, date)
+);
+
+CREATE TABLE IF NOT EXISTS Student_Courses (
+    student_id INT NOT NULL,
+    course_id INT NOT NULL,
+    enrollment_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (student_id, course_id),
+    FOREIGN KEY (student_id) REFERENCES Students(id) ON DELETE CASCADE,
+    FOREIGN KEY (course_id) REFERENCES Courses(id) ON DELETE CASCADE
 );
 
 // Insert default admin user
