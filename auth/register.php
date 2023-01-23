@@ -52,62 +52,50 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Register - Student Management System</title>
-    <link rel="stylesheet" href="../assets/css/style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <title>Register</title>
+    <script>
+        async function handleRegister(event) {
+            event.preventDefault();
+
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const role = document.getElementById('role').value;
+
+            try {
+                const response = await fetch('../api/endpoints.php?endpoint=register', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ username, password, role }),
+                    credentials: 'include' // Important for session cookies
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    alert('Registration successful!');
+                    window.location.href = 'login.php'; // Redirect to login
+                } else {
+                    alert(data.error || 'Registration failed');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error registering. Please try again.');
+            }
+        }
+    </script>
 </head>
 <body>
-    <div class="login-container">
-        <form action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]); ?>" method="post">
-            <h2>Create Account</h2>
-            <?php if ($error_message): ?>
-                <div class="error-message"><?php echo $error_message; ?></div>
-            <?php endif; ?>
-            <div class="form-group">
-                <input type="text" name="username" placeholder="Username" required>
-            </div>
-            <div class="form-group">
-                <input type="password" name="password" placeholder="Password" required>
-            </div>
-            <div class="form-group">
-                <input type="text" name="full_name" placeholder="Full Name" required>
-            </div>
-            <div class="form-group">
-                <select name="role" id="role" required>
-                    <option value="">Select your role</option>
-                    <option value="Student">Student</option>
-                    <option value="Teacher">Teacher</option>
-                </select>
-            </div>
-            <div class="form-group student-fields" style="display:none;">
-                <input type="text" name="class" placeholder="Enter your class">
-            </div>
-            <div class="form-group teacher-fields" style="display:none;">
-                <input type="text" name="department" placeholder="Enter your department">
-            </div>
-            <button type="submit" class="btn-primary">Create Account</button>
-            <div class="login-link">
-                Already have an account? <a href="login.php">Login here</a>
-            </div>
-        </form>
-    </div>
-
-    <script>
-        document.getElementById('role').addEventListener('change', function() {
-            const studentFields = document.querySelector('.student-fields');
-            const teacherFields = document.querySelector('.teacher-fields');
-            
-            studentFields.style.display = this.value === 'Student' ? 'block' : 'none';
-            teacherFields.style.display = this.value === 'Teacher' ? 'block' : 'none';
-            
-            if (this.value === 'Student') {
-                document.querySelector('[name="class"]').required = true;
-                document.querySelector('[name="department"]').required = false;
-            } else if (this.value === 'Teacher') {
-                document.querySelector('[name="class"]').required = false;
-                document.querySelector('[name="department"]').required = true;
-            }
-        });
-    </script>
+    <form id="register-form" onsubmit="handleRegister(event)">
+        <input type="text" id="username" placeholder="Username" required>
+        <input type="password" id="password" placeholder="Password" required>
+        <select id="role" required>
+            <option value="Student">Student</option>
+            <option value="Teacher">Teacher</option>
+        </select>
+        <button type="submit">Register</button>
+    </form>
 </body>
 </html>

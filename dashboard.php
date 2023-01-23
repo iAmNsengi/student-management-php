@@ -29,6 +29,39 @@ $profile = $user->getProfile();
     <link rel="stylesheet" href="assets/css/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+// Utility functions
+async function fetchAPI(endpoint, options = {}) {
+    const defaultOptions = {
+        credentials: 'include', // Important for sending cookies
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    };
+
+    try {
+        const response = await fetch(`api/endpoints.php?endpoint=${endpoint}`, {
+            ...defaultOptions,
+            ...options,
+        });
+
+        if (!response.ok) {
+            if (response.status === 401) {
+                window.location.href = 'auth/login.php';
+                return;
+            }
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        return await response.json();
+    } catch (error) {
+        console.error('API Error:', error);
+        throw error;
+    }
+}
+
+// Rest of your JavaScript functions...
+</script>
 </head>
 <body>
     <div class="dashboard-container">
@@ -637,7 +670,6 @@ $profile = $user->getProfile();
     document.getElementById('profile-form').addEventListener('submit', async function(e) {
         e.preventDefault();
         
-        // Show loading state
         const submitButton = this.querySelector('button[type="submit"]');
         const originalButtonText = submitButton.textContent;
         submitButton.textContent = 'Updating...';
@@ -654,24 +686,19 @@ $profile = $user->getProfile();
                 })
             });
             
-            const data = await response.json();
-            
-            if (data.success) {
-                // Show success message
+            if (response.success) {
                 alert('Profile updated successfully!');
-                // Update the displayed name in the sidebar if it exists
-                const sidebarName = document.querySelector('.profile-section h3');
-                if (sidebarName) {
-                    sidebarName.textContent = document.getElementById('full-name').value;
+                const nameDisplay = document.querySelector('.profile-section h3');
+                if (nameDisplay) {
+                    nameDisplay.textContent = document.getElementById('full-name').value;
                 }
             } else {
-                alert(data.message || 'Error updating profile');
+                alert(response.message || 'Error updating profile');
             }
         } catch (error) {
             console.error('Error:', error);
             alert('Error updating profile. Please try again.');
         } finally {
-            // Reset button state
             submitButton.textContent = originalButtonText;
             submitButton.disabled = false;
         }
@@ -787,6 +814,205 @@ $profile = $user->getProfile();
             }
         } catch (error) {
             console.error('Error:', error);
+        }
+    }
+
+    // Update other fetch calls similarly
+    async function loadProfile() {
+        try {
+            const data = await fetchAPI('get_profile');
+            if (data.success && data.data) {
+                const fullNameInput = document.getElementById('full-name');
+                if (fullNameInput) {
+                    fullNameInput.value = data.data.full_name;
+                }
+                
+                const departmentInput = document.getElementById('department');
+                if (departmentInput && data.data.department) {
+                    departmentInput.value = data.data.department;
+                }
+                
+                const classInput = document.getElementById('class');
+                if (classInput && data.data.class) {
+                    classInput.value = data.data.class;
+                }
+            }
+        } catch (error) {
+            console.error('Error loading profile:', error);
+        }
+    }
+
+    async function loadCourses() {
+        try {
+            const courses = await fetchAPI('view_courses');
+            // Handle the courses data
+            updateCoursesDisplay(courses);
+        } catch (error) {
+            console.error('Error loading courses:', error);
+        }
+    }
+
+    async function loadGrades() {
+        try {
+            const grades = await fetchAPI('view_grades');
+            // Handle the grades data
+            updateGradesDisplay(grades);
+        } catch (error) {
+            console.error('Error loading grades:', error);
+        }
+    }
+
+    async function loadAttendance() {
+        try {
+            const attendance = await fetchAPI('view_attendance');
+            // Handle the attendance data
+            updateAttendanceDisplay(attendance);
+        } catch (error) {
+            console.error('Error loading attendance:', error);
+        }
+    }
+
+    // Load data when page loads
+    document.addEventListener('DOMContentLoaded', () => {
+        loadProfile();
+        loadOverviewData();
+        loadCourses();
+        loadGrades();
+        loadAttendance();
+    });
+
+    // Add these display update functions
+    function updateCoursesDisplay(courses) {
+        const coursesList = document.querySelector('#courses-list');
+        if (coursesList) {
+            coursesList.innerHTML = courses.length ? courses.map(course => `
+                <div class="course-card">
+                    <h3>${course.name}</h3>
+                    <p>Schedule: ${course.schedule}</p>
+                    <p>Teacher: ${course.teacher_name}</p>
+                </div>
+            `).join('') : '<p>No courses found</p>';
+        }
+
+        // Update courses count if element exists
+        const coursesCount = document.getElementById('courses-count');
+        if (coursesCount) {
+            coursesCount.textContent = courses.length;
+        }
+    }
+
+    function updateGradesDisplay(grades) {
+        const gradesList = document.querySelector('#grades-list');
+        if (gradesList) {
+            gradesList.innerHTML = grades.length ? `
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Course</th>
+                            <th>Grade</th>
+                            <th>Date</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${grades.map(grade => `
+                            <tr>
+                                <td>${grade.course_name}</td>
+                                <td>${grade.grade}%</td>
+                                <td>${new Date(grade.created_at).toLocaleDateString()}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            ` : '<p>No grades found</p>';
+        }
+
+        // Update average grade if element exists
+        if (grades.length > 0) {
+            const averageGrade = grades.reduce((acc, curr) => acc + parseFloat(curr.grade), 0) / grades.length;
+            const averageElement = document.getElementById('average-grade');
+            if (averageElement) {
+                averageElement.textContent = averageGrade.toFixed(2) + '%';
+            }
+        }
+    }
+
+    function updateAttendanceDisplay(attendance) {
+        const attendanceList = document.querySelector('#attendance-list');
+        if (attendanceList) {
+            attendanceList.innerHTML = attendance.length ? `
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Course</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${attendance.map(record => `
+                            <tr>
+                                <td>${new Date(record.date).toLocaleDateString()}</td>
+                                <td>${record.course_name}</td>
+                                <td>${record.status}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            ` : '<p>No attendance records found</p>';
+        }
+
+        // Update attendance rate if element exists
+        if (attendance.length > 0) {
+            const presentCount = attendance.filter(a => a.status.toLowerCase() === 'present').length;
+            const rate = (presentCount / attendance.length) * 100;
+            const rateElement = document.getElementById('attendance-rate');
+            if (rateElement) {
+                rateElement.textContent = rate.toFixed(2) + '%';
+            }
+        }
+    }
+
+    async function loadOverviewData() {
+        try {
+            const data = await fetchAPI('view_overview');
+            // Update overview statistics here
+            const overviewStats = document.querySelector('.overview-stats');
+            if (overviewStats) {
+                // Update the stats based on user role
+                if (data.role === 'Student') {
+                    overviewStats.innerHTML = `
+                        <div class="stat-card">
+                            <h3>Courses</h3>
+                            <p>${data.courses_count}</p>
+                        </div>
+                        <div class="stat-card">
+                            <h3>Average Grade</h3>
+                            <p>${data.average_grade}%</p>
+                        </div>
+                        <div class="stat-card">
+                            <h3>Attendance Rate</h3>
+                            <p>${data.attendance_rate}%</p>
+                        </div>
+                    `;
+                } else {
+                    overviewStats.innerHTML = `
+                        <div class="stat-card">
+                            <h3>Students</h3>
+                            <p>${data.students_count}</p>
+                        </div>
+                        <div class="stat-card">
+                            <h3>Courses</h3>
+                            <p>${data.courses_count}</p>
+                        </div>
+                        <div class="stat-card">
+                            <h3>Average Class Grade</h3>
+                            <p>${data.average_grade}%</p>
+                        </div>
+                    `;
+                }
+            }
+        } catch (error) {
+            console.error('Error loading overview:', error);
         }
     }
     </script>
@@ -992,5 +1218,28 @@ $profile = $user->getProfile();
         color: white;
     }
     </style>
+
+    <script>
+    // Event listeners and initialization
+    document.addEventListener('DOMContentLoaded', () => {
+        // Initialize all components
+        loadProfile();
+        loadOverviewData();
+        loadCourses();
+        loadGrades();
+        loadAttendance();
+
+        // Add event listeners for forms
+        const profileForm = document.getElementById('profile-form');
+        if (profileForm) {
+            profileForm.addEventListener('submit', handleProfileUpdate);
+        }
+
+        const addCourseForm = document.getElementById('addCourseForm');
+        if (addCourseForm) {
+            addCourseForm.addEventListener('submit', handleAddCourse);
+        }
+    });
+    </script>
 </body>
 </html>

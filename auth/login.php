@@ -34,21 +34,52 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - Student Management System</title>
-    <link rel="stylesheet" href="../assets/css/style.css">
+    <link rel="stylesheet" href="styles.css">
+    <title>Login</title>
+    <script>
+        async function handleLogin(event) {
+            event.preventDefault();
+
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+
+            try {
+                const response = await fetch('../api/endpoints.php?endpoint=login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ username, password }),
+                    credentials: 'include' // Important for session cookies
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    alert('Login successful!');
+                    window.location.href = '../dashboard.php'; // Redirect to dashboard
+                } else {
+                    alert(data.error || 'Login failed');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error logging in. Please try again.');
+            }
+        }
+    </script>
 </head>
 <body>
     <div class="login-container">
-        <form action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]); ?>" method="post">
+        <form id="login-form" onsubmit="handleLogin(event)">
             <h2>Login</h2>
             <?php if(!empty($login_err)): ?>
                 <div class="alert alert-danger"><?php echo $login_err; ?></div>
             <?php endif; ?>
             <div class="form-group">
-                <input type="text" name="username" placeholder="Username" required>
+                <input type="text" id="username" name="username" placeholder="Username" required>
             </div>
             <div class="form-group">
-                <input type="password" name="password" placeholder="Password" required>
+                <input type="password" id="password" name="password" placeholder="Password" required>
             </div>
             <button type="submit" class="btn-primary">Login</button>
             <p>Don't have an account? <a href="register.php">Register here</a></p>
