@@ -157,18 +157,33 @@ switch ($endpoint) {
             echo json_encode(['error' => 'Method not allowed']);
             exit;
         }
-        
-        require_once "../modules/attendance/Attendance.php";
-        $attendance = new Attendance($db);
-        
+
         $data = json_decode(file_get_contents('php://input'), true);
-        $result = $attendance->markAttendance(
-            $data['student_id'],
-            $data['date'],
-            $data['status']
-        );
-        
-        echo json_encode(['success' => $result]);
+
+        if (!isset($data['student_id']) || !isset($data['course_id']) || !isset($data['date']) || !isset($data['status'])) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Missing required fields']);
+            exit;
+        }
+
+        try {
+            $query = "INSERT INTO Attendance (student_id, course_id, date, status) VALUES (:student_id, :course_id, :date, :status)
+                      ON DUPLICATE KEY UPDATE status = :status";
+            $stmt = $db->prepare($query);
+            $stmt->bindParam(':student_id', $data['student_id']);
+            $stmt->bindParam(':course_id', $data['course_id']);
+            $stmt->bindParam(':date', $data['date']);
+            $stmt->bindParam(':status', $data['status']);
+            
+            if ($stmt->execute()) {
+                echo json_encode(['success' => true, 'message' => 'Attendance marked successfully']);
+            } else {
+                echo json_encode(['success' => false, 'message' => 'Failed to mark attendance']);
+            }
+        } catch (PDOException $e) {
+            http_response_code(500);
+            echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
+        }
         break;
 
     case 'view_courses':
@@ -189,7 +204,9 @@ switch ($endpoint) {
             
             $stmt = $db->prepare($query);
             $stmt->execute([$_SESSION['user_id']]);
-            echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
+            $courses = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            echo json_encode(['success' => true, 'data' => $courses]);
         } catch (PDOException $e) {
             http_response_code(500);
             echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
@@ -197,21 +214,20 @@ switch ($endpoint) {
         break;
 
     case 'update_profile':
-        error_log('Profile update attempt - User ID: ' . $_SESSION['user_id'] . ', Role: ' . $role);
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             http_response_code(405);
             echo json_encode(['error' => 'Method not allowed']);
             exit;
         }
-        
+
         $data = json_decode(file_get_contents('php://input'), true);
-        
+
         if (!isset($data['full_name'])) {
             http_response_code(400);
             echo json_encode(['error' => 'Missing required fields']);
             exit;
         }
-        
+
         try {
             if ($role === 'Student') {
                 $query = "UPDATE Students SET full_name = :full_name WHERE user_id = :user_id";
@@ -235,61 +251,35 @@ switch ($endpoint) {
         break;
 
     case 'create_course':
-        debug_log("Creating course for teacher: " . $_SESSION['user_id']);
-        
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            debug_log("Invalid method: " . $_SERVER['REQUEST_METHOD']);
             http_response_code(405);
             echo json_encode(['error' => 'Method not allowed']);
             exit;
         }
-        
-        if ($role !== 'Teacher') {
-            debug_log("Unauthorized role: " . $role);
-            http_response_code(403);
-            echo json_encode(['error' => 'Only teachers can create courses']);
-            exit;
-        }
-        
-        require_once "../modules/courses/Course.php";
-        $course = new Course($db);
-        
+
         $data = json_decode(file_get_contents('php://input'), true);
-        debug_log("Received course data:", $data);
-        
+
         if (!isset($data['name']) || !isset($data['schedule'])) {
-            debug_log("Missing required fields");
             http_response_code(400);
             echo json_encode(['error' => 'Missing required fields']);
             exit;
         }
-        
+
         try {
-            $query = "INSERT INTO Courses (name, teacher_id, schedule) VALUES (?, ?, ?)";
+            $query = "INSERT INTO Courses (name, teacher_id, schedule) VALUES (:name, :teacher_id, :schedule)";
             $stmt = $db->prepare($query);
+            $stmt->bindParam(':name', $data['name']);
+            $stmt->bindParam(':teacher_id', $_SESSION['user_id']);
+            $stmt->bindParam(':schedule', $data['schedule']);
             
-            if ($stmt->execute([$data['name'], $_SESSION['user_id'], $data['schedule']])) {
-                $result = [
-                    'success' => true,
-                    'message' => 'Course created successfully',
-                    'id' => $db->lastInsertId()
-                ];
-                debug_log("Course created successfully", $result);
-                echo json_encode($result);
+            if ($stmt->execute()) {
+                echo json_encode(['success' => true, 'message' => 'Course created successfully']);
             } else {
-                debug_log("Failed to create course");
-                echo json_encode([
-                    'success' => false,
-                    'message' => 'Failed to create course'
-                ]);
+                echo json_encode(['success' => false, 'message' => 'Failed to create course']);
             }
         } catch (PDOException $e) {
-            debug_log("Database error: " . $e->getMessage());
             http_response_code(500);
-            echo json_encode([
-                'success' => false,
-                'message' => 'Database error: ' . $e->getMessage()
-            ]);
+            echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
         }
         break;
 
@@ -482,6 +472,35 @@ switch ($endpoint) {
                 echo json_encode(['success' => true, 'message' => 'Registration successful']);
             } else {
                 echo json_encode(['success' => false, 'message' => 'Registration failed']);
+            }
+        } catch (PDOException $e) {
+            http_response_code(500);
+            echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
+        }
+        break;
+
+    case 'get_profile':
+        try {
+            if ($role === 'Student') {
+                $query = "SELECT s.*, u.username, u.role 
+                         FROM Students s 
+                         JOIN Users u ON s.user_id = u.id 
+                         WHERE u.id = ?";
+            } else {
+                $query = "SELECT t.*, u.username, u.role 
+                         FROM Teachers t 
+                         JOIN Users u ON t.user_id = u.id 
+                         WHERE u.id = ?";
+            }
+            
+            $stmt = $db->prepare($query);
+            $stmt->execute([$_SESSION['user_id']]);
+            $profile = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if ($profile) {
+                echo json_encode(['success' => true, 'data' => $profile]);
+            } else {
+                echo json_encode(['success' => false, 'message' => 'Profile not found']);
             }
         } catch (PDOException $e) {
             http_response_code(500);
