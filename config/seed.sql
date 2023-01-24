@@ -90,3 +90,8 @@ INSERT INTO Teachers (user_id, full_name, department) VALUES
 
 INSERT INTO Students (user_id, full_name, class) VALUES
 (2, 'Jane Smith', '10A');
+
+
+INSERT INTO Courses (name, teacher_id, schedule) VALUES
+('Mathematics 101', 1, 'Monday 9:00-10:30'),
+('Advanced Algebra', 1, 'Wednesday 11:00-12:30');

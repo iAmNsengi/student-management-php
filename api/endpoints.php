@@ -196,15 +196,18 @@ switch ($endpoint) {
                          JOIN Teachers t ON c.teacher_id = t.user_id 
                          WHERE s.user_id = ?";
             } else {
-                $query = "SELECT c.*, t.full_name as teacher_name 
-                         FROM Courses c 
-                         JOIN Teachers t ON c.teacher_id = t.user_id 
-                         WHERE t.user_id = ?";
+            $query = "SELECT c.*, t.full_name as teacher_name 
+             FROM Courses c 
+             JOIN Teachers t ON c.teacher_id = t.user_id 
+             WHERE c.teacher_id = ?";
             }
             
             $stmt = $db->prepare($query);
             $stmt->execute([$_SESSION['user_id']]);
             $courses = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            // Debugging: Log the fetched courses
+            error_log("Fetched courses: " . print_r($courses, true));
             
             echo json_encode(['success' => true, 'data' => $courses]);
         } catch (PDOException $e) {
@@ -472,35 +475,6 @@ switch ($endpoint) {
                 echo json_encode(['success' => true, 'message' => 'Registration successful']);
             } else {
                 echo json_encode(['success' => false, 'message' => 'Registration failed']);
-            }
-        } catch (PDOException $e) {
-            http_response_code(500);
-            echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
-        }
-        break;
-
-    case 'get_profile':
-        try {
-            if ($role === 'Student') {
-                $query = "SELECT s.*, u.username, u.role 
-                         FROM Students s 
-                         JOIN Users u ON s.user_id = u.id 
-                         WHERE u.id = ?";
-            } else {
-                $query = "SELECT t.*, u.username, u.role 
-                         FROM Teachers t 
-                         JOIN Users u ON t.user_id = u.id 
-                         WHERE u.id = ?";
-            }
-            
-            $stmt = $db->prepare($query);
-            $stmt->execute([$_SESSION['user_id']]);
-            $profile = $stmt->fetch(PDO::FETCH_ASSOC);
-            
-            if ($profile) {
-                echo json_encode(['success' => true, 'data' => $profile]);
-            } else {
-                echo json_encode(['success' => false, 'message' => 'Profile not found']);
             }
         } catch (PDOException $e) {
             http_response_code(500);
