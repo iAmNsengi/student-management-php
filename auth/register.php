@@ -96,6 +96,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             <option value="Teacher">Teacher</option>
         </select>
         <button type="submit">Register</button>
+            <p>Already have an account? <a href="login.php">Login here</a></p>
+
     </form>
 </body>
 </html>
