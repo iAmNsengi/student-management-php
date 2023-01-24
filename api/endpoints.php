@@ -188,29 +188,49 @@ switch ($endpoint) {
 
     case 'view_courses':
         try {
-            if ($role === 'Student') {
-                $query = "SELECT c.*, t.full_name as teacher_name 
-                         FROM Courses c 
-                         JOIN Student_Courses sc ON c.id = sc.course_id 
-                         JOIN Students s ON sc.student_id = s.id 
-                         JOIN Teachers t ON c.teacher_id = t.user_id 
-                         WHERE s.user_id = ?";
-            } else {
+            debug_log("Viewing courses for user: " . $_SESSION['user_id'] . " with role: " . $role);
+            
+            // Base query to get all courses with teacher names
             $query = "SELECT c.*, t.full_name as teacher_name 
-             FROM Courses c 
-             JOIN Teachers t ON c.teacher_id = t.user_id 
-             WHERE c.teacher_id = ?";
+                     FROM Courses c 
+                     LEFT JOIN Teachers t ON c.teacher_id = t.user_id";
+            
+            // Add role-specific filters
+            if ($role === 'Student') {
+                // For students, show all courses but mark enrolled ones
+                $query = "SELECT c.*, t.full_name as teacher_name,
+                                CASE WHEN sc.course_id IS NOT NULL THEN true ELSE false END as is_enrolled
+                         FROM Courses c 
+                         LEFT JOIN Teachers t ON c.teacher_id = t.user_id
+                         LEFT JOIN Student_Courses sc ON c.id = sc.course_id 
+                         AND sc.student_id = (SELECT id FROM Students WHERE user_id = :user_id)";
+                
+                $stmt = $db->prepare($query);
+                $stmt->bindValue(':user_id', $_SESSION['user_id'], PDO::PARAM_INT);
+            } else if ($role === 'Teacher') {
+                // For teachers, show all courses but highlight their own
+                $query = "SELECT c.*, t.full_name as teacher_name,
+                                CASE WHEN c.teacher_id = :user_id THEN true ELSE false END as is_teaching
+                         FROM Courses c 
+                         LEFT JOIN Teachers t ON c.teacher_id = t.user_id";
+                
+                $stmt = $db->prepare($query);
+                $stmt->bindValue(':user_id', $_SESSION['user_id'], PDO::PARAM_INT);
+            } else {
+                // For any other case, just show all courses
+                $stmt = $db->prepare($query);
             }
             
-            $stmt = $db->prepare($query);
-            $stmt->execute([$_SESSION['user_id']]);
+            debug_log("SQL Query: " . $query);
+            
+            $stmt->execute();
             $courses = $stmt->fetchAll(PDO::FETCH_ASSOC);
             
-            // Debugging: Log the fetched courses
-            error_log("Fetched courses: " . print_r($courses, true));
+            debug_log("Query results:", $courses);
             
             echo json_encode(['success' => true, 'data' => $courses]);
         } catch (PDOException $e) {
+            debug_log("Database error: " . $e->getMessage());
             http_response_code(500);
             echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
         }
