@@ -59,8 +59,6 @@ async function fetchAPI(endpoint, options = {}) {
         throw error;
     }
 }
-
-// Rest of your JavaScript functions...
 </script>
 </head>
 <body>
@@ -362,20 +360,20 @@ async function fetchAPI(endpoint, options = {}) {
     async function updateDashboardCards(data) {
         if (document.getElementById('courses-count')) {
             const coursesResponse = await fetch('api/endpoints.php?endpoint=view_courses');
-            const coursesData = await coursesResponse.json();
+            const coursesData = await coursesResponse.data.json();
             document.getElementById('courses-count').textContent = coursesData.length;
         }
         
         if (document.getElementById('average-grade')) {
             const gradesResponse = await fetch('api/endpoints.php?endpoint=view_grades');
-            const gradesData = await gradesResponse.json();
+            const gradesData = await gradesResponse.data.json();
             const average = gradesData.reduce((acc, curr) => acc + parseFloat(curr.grade), 0) / gradesData.length;
             document.getElementById('average-grade').textContent = average.toFixed(2) + '%';
         }
         
         if (document.getElementById('attendance-rate')) {
             const attendanceResponse = await fetch('api/endpoints.php?endpoint=view_attendance');
-            const attendanceData = await attendanceResponse.json();
+            const attendanceData = await attendanceResponse.data.json();
             const presentCount = attendanceData.filter(a => a.status === 'present').length;
             const rate = (presentCount / attendanceData.length) * 100;
             document.getElementById('attendance-rate').textContent = rate.toFixed(2) + '%';
@@ -708,6 +706,8 @@ async function fetchAPI(endpoint, options = {}) {
     async function loadCourses() {
         try {
             const response = await fetchAPI('view_courses');
+            console.log(response);
+            
             if (response.success) {
                 updateCoursesDisplay(response.data);
             } else {
@@ -724,10 +724,22 @@ async function fetchAPI(endpoint, options = {}) {
             coursesList.innerHTML = courses.length ? courses.map(course => `
                 <div class="course-card">
                     <h3>${course.name}</h3>
-                    <p>Schedule: ${course.schedule}</p>
-                    <p>Teacher: ${course.teacher_name}</p>
+                    <p><i class="fas fa-clock"></i> Schedule: ${course.schedule}</p>
+                    <p><i class="fas fa-chalkboard-teacher"></i> Teacher: ${course.teacher_name || 'Not Assigned'}</p>
+                    ${course.is_enrolled !== undefined ? `
+                        <p class="enrollment-status">
+                            <i class="fas ${course.is_enrolled ? 'fa-check-circle' : 'fa-circle'}"></i>
+                            ${course.is_enrolled ? 'Enrolled' : 'Not Enrolled'}
+                        </p>
+                    ` : ''}
+                    ${course.is_teaching !== undefined ? `
+                        <p class="teaching-status">
+                            <i class="fas ${course.is_teaching ? 'fa-star' : 'fa-star-o'}"></i>
+                            ${course.is_teaching ? 'Teaching' : 'Other Course'}
+                        </p>
+                    ` : ''}
                 </div>
-            `).join('') : '<p>No courses found</p>';
+            `).join('') : '<p class="no-courses">No courses found</p>';
         }
 
         // Update courses count if element exists
@@ -742,36 +754,40 @@ async function fetchAPI(endpoint, options = {}) {
             const response = await fetch('api/endpoints.php?endpoint=view_grades');
             const grades = await response.json();
             
-            const gradesList = document.querySelector('#manage-grades-list');
-            if (gradesList) {
-                gradesList.innerHTML = `
-                    <table class="data-grid">
-                        <thead>
-                            <tr>
-                                <th>Student</th>
-                                <th>Course</th>
-                                <th>Grade</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${grades.map(grade => `
-                                <tr>
-                                    <td>${grade.student_name}</td>
-                                    <td>${grade.course_name}</td>
-                                    <td>${grade.grade}%</td>
-                                    <td class="action-buttons">
-                                        <button class="btn-edit" onclick="editGrade(${grade.id})">Edit</button>
-                                        <button class="btn-delete" onclick="deleteGrade(${grade.id})">Delete</button>
-                                    </td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
-                `;
-            }
+            updateGradesList(grades);
         } catch (error) {
             console.error('Error:', error);
+        }
+    }
+
+    function updateGradesList(grades) {
+        const gradesList = document.querySelector('#grades-list');
+        if (gradesList) {
+            gradesList.innerHTML = `
+                <table class="data-grid">
+                    <thead>
+                        <tr>
+                            <th>Student</th>
+                            <th>Course</th>
+                            <th>Grade</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${grades.length ? grades.map(grade => `
+                            <tr>
+                                <td>${grade.student_name}</td>
+                                <td>${grade.course_name}</td>
+                                <td>${grade.grade}%</td>
+                                <td class="action-buttons">
+                                    <button class="btn-edit" onclick="editGrade(${grade.id})">Edit</button>
+                                    <button class="btn-delete" onclick="deleteGrade(${grade.id})">Delete</button>
+                                </td>
+                            </tr>
+                        `).join('') : '<tr><td colspan="4">No grades found</td></tr>'}
+                    </tbody>
+                </table>
+            `;
         }
     }
 
@@ -813,10 +829,7 @@ async function fetchAPI(endpoint, options = {}) {
         }
     }
 
-    // Load data when page loads
-    document.addEventListener('DOMContentLoaded', () => {
-        loadCourses();
-    });
+  
     </script>
 
     <style>
