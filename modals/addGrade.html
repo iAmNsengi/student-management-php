@@ -1,0 +1,29 @@
+<!-- Add Grade Modal -->
+<div id="addGradeModal" class="modal">
+  <div class="modal-content">
+    <span class="close">&times;</span>
+    <h2>Add Grade</h2>
+    <form id="addGradeForm">
+      <div class="form-group">
+        <label for="gradeStudent">Student</label>
+        <select id="gradeStudent" name="student_id" required></select>
+      </div>
+      <div class="form-group">
+        <label for="gradeCourse">Course</label>
+        <select id="gradeCourse" name="course_id" required></select>
+      </div>
+      <div class="form-group">
+        <label for="gradeValue">Grade</label>
+        <input
+          type="number"
+          id="gradeValue"
+          name="grade"
+          min="0"
+          max="100"
+          required
+        />
+      </div>
+      <button type="submit" class="btn-primary">Add Grade</button>
+    </form>
+  </div>
+</div>

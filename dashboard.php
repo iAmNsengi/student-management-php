@@ -209,46 +209,9 @@ $profile = $user->getProfile();
 
  
 
-    <!-- Add Grade Modal -->
-    <div id="addGradeModal" class="modal">
-        <div class="modal-content">
-            <span class="close">&times;</span>
-            <h2>Add Grade</h2>
-            <form id="addGradeForm">
-                <div class="form-group">
-                    <label for="gradeStudent">Student</label>
-                    <select id="gradeStudent" name="student_id" required></select>
-                </div>
-                <div class="form-group">
-                    <label for="gradeCourse">Course</label>
-                    <select id="gradeCourse" name="course_id" required></select>
-                </div>
-                <div class="form-group">
-                    <label for="gradeValue">Grade</label>
-                    <input type="number" id="gradeValue" name="grade" min="0" max="100" required>
-                </div>
-                <button type="submit" class="btn-primary">Add Grade</button>
-            </form>
-        </div>
-    </div>
 
-    <!-- Mark Attendance Modal -->
-    <div id="markAttendanceModal" class="modal">
-        <div class="modal-content">
-            <span class="close">&times;</span>
-            <h2>Mark Attendance</h2>
-            <form id="markAttendanceForm">
-                <div class="form-group">
-                    <label for="attendanceDate">Date</label>
-                    <input type="date" id="attendanceDate" name="date" required>
-                </div>
-                <div id="attendanceStudentList">
-                    <!-- Students will be populated here -->
-                </div>
-                <button type="submit" class="btn-primary">Save Attendance</button>
-            </form>
-        </div>
-    </div>
+
+   
 
     <script>
     // Navigation handling
