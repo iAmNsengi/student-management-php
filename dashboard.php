@@ -27,8 +27,11 @@ $profile = $user->getProfile();
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - Student Management System</title>
     <link rel="stylesheet" href="assets/css/style.css">
+    <link rel="stylesheet" href="dashboard.css">
+
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
     <script>
 // Utility functions
 async function fetchAPI(endpoint, options = {}) {
@@ -360,22 +363,31 @@ async function fetchAPI(endpoint, options = {}) {
     async function updateDashboardCards(data) {
         if (document.getElementById('courses-count')) {
             const coursesResponse = await fetch('api/endpoints.php?endpoint=view_courses');
-            const coursesData = await coursesResponse.data.json();
-            document.getElementById('courses-count').textContent = coursesData.length;
+            const coursesData = await coursesResponse.data
+            document.getElementById('courses-count').textContent = coursesData?.length;
         }
         
         if (document.getElementById('average-grade')) {
-            const gradesResponse = await fetch('api/endpoints.php?endpoint=view_grades');
-            const gradesData = await gradesResponse.data.json();
-            const average = gradesData.reduce((acc, curr) => acc + parseFloat(curr.grade), 0) / gradesData.length;
-            document.getElementById('average-grade').textContent = average.toFixed(2) + '%';
+            try {
+                const gradesResponse = await fetchAPI('view_grades');
+                if (gradesResponse.success && gradesResponse.data.length > 0) {
+                    const grades = gradesResponse.data;
+                    const average = grades.reduce((acc, curr) => acc + parseFloat(curr.grade), 0) / grades.length;
+                    document.getElementById('average-grade').textContent = `${average.toFixed(1)}%`;
+                } else {
+                    document.getElementById('average-grade').textContent = 'N/A';
+                }
+            } catch (error) {
+                console.error('Error loading grades:', error);
+                document.getElementById('average-grade').textContent = 'Error';
+            }
         }
         
         if (document.getElementById('attendance-rate')) {
             const attendanceResponse = await fetch('api/endpoints.php?endpoint=view_attendance');
-            const attendanceData = await attendanceResponse.data.json();
-            const presentCount = attendanceData.filter(a => a.status === 'present').length;
-            const rate = (presentCount / attendanceData.length) * 100;
+            const attendanceData = await attendanceResponse?.data?.json();
+            const presentCount = attendanceData?.filter(a => a?.status === 'present').length;
+            const rate = (presentCount / attendanceData?.length) * 100;
             document.getElementById('attendance-rate').textContent = rate.toFixed(2) + '%';
         }
         
@@ -410,16 +422,31 @@ async function fetchAPI(endpoint, options = {}) {
         
         // Create new chart based on user role
         if (document.getElementById('average-grade')) {
-            // Student chart
+            // Debug what's in data
+            console.log('Chart data received:', data);
+            
+            // Ensure data is an array
+            let chartData = [];
+            if (Array.isArray(data)) {
+                chartData = data.filter(item => item.grade != null);
+            } else if (data && typeof data === 'object') {
+                // If data is an object, try to convert it to array
+                chartData = Object.values(data)?.filter(item => item?.grade != null);
+            }
+            
+            console.log('Processed chart data:', chartData);
+            
             window.overviewChart = new Chart(ctx, {
                 type: 'line',
                 data: {
-                    labels: data.map(item => item.course_name),
+                    labels: chartData.map(item => item.course_name || 'Unknown Course'),
                     datasets: [{
                         label: 'Grades by Course',
-                        data: data.map(item => item.grade),
+                        data: chartData.map(item => parseFloat(item.grade) || 0),
                         borderColor: 'rgb(75, 192, 192)',
-                        tension: 0.1
+                        backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                        tension: 0.1,
+                        fill: true
                     }]
                 },
                 options: {
@@ -427,7 +454,24 @@ async function fetchAPI(endpoint, options = {}) {
                     scales: {
                         y: {
                             beginAtZero: true,
-                            max: 100
+                            max: 100,
+                            title: {
+                                display: true,
+                                text: 'Grade (%)'
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top'
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return `Grade: ${context.parsed.y}%`;
+                                }
+                            }
                         }
                     }
                 }
@@ -831,208 +875,6 @@ async function fetchAPI(endpoint, options = {}) {
 
   
     </script>
-
-    <style>
-    .dashboard-container {
-        display: flex;
-        min-height: 100vh;
-    }
-
-    .sidebar {
-        width: 250px;
-        background: #2c3e50;
-        color: white;
-        padding: 20px;
-    }
-
-    .main-content {
-        flex: 1;
-        padding: 20px;
-        background: #f5f6fa;
-    }
-
-    .profile-section {
-        text-align: center;
-        padding: 20px 0;
-        border-bottom: 1px solid rgba(255,255,255,0.1);
-    }
-
-    .profile-image {
-        width: 80px;
-        height: 80px;
-        border-radius: 50%;
-        margin-bottom: 10px;
-    }
-
-    .nav-item {
-        display: flex;
-        align-items: center;
-        padding: 12px 15px;
-        color: white;
-        text-decoration: none;
-        transition: 0.3s;
-        margin: 5px 0;
-        border-radius: 5px;
-    }
-
-    .nav-item:hover, .nav-item.active {
-        background: rgba(255,255,255,0.1);
-    }
-
-    .nav-item i {
-        margin-right: 10px;
-    }
-
-    .dashboard-cards {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-        gap: 20px;
-        margin-bottom: 30px;
-    }
-
-    .card {
-        background: white;
-        padding: 20px;
-        border-radius: 10px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }
-
-    .panel {
-        display: none;
-    }
-
-    .panel.active {
-        display: block;
-    }
-
-    .data-grid {
-        background: white;
-        border-radius: 10px;
-        padding: 20px;
-        margin-top: 20px;
-    }
-
-    .btn-primary {
-        background: #3498db;
-        color: white;
-        border: none;
-        padding: 10px 20px;
-        border-radius: 5px;
-        cursor: pointer;
-    }
-
-    .btn-primary:hover {
-        background: #2980b9;
-    }
-
-    .filters {
-        margin: 20px 0;
-    }
-
-    .form-group {
-        margin-bottom: 15px;
-    }
-
-    .form-group label {
-        display: block;
-        margin-bottom: 5px;
-    }
-
-    .form-group input {
-        width: 100%;
-        padding: 8px;
-        border: 1px solid #ddd;
-        border-radius: 4px;
-    }
-
-    .modal {
-        display: none;
-        position: fixed;
-        z-index: 1000;
-        left: 0;
-        top: 0;
-        width: 100%;
-        height: 100%;
-        background-color: rgba(0,0,0,0.5);
-    }
-
-    .modal-content {
-        background-color: #fefefe;
-        margin: 15% auto;
-        padding: 20px;
-        border-radius: 8px;
-        width: 80%;
-        max-width: 500px;
-    }
-
-    .close {
-        float: right;
-        font-size: 28px;
-        font-weight: bold;
-        cursor: pointer;
-    }
-
-    .close:hover {
-        color: #666;
-    }
-
-    .attendance-row {
-        display: flex;
-        align-items: center;
-        margin: 10px 0;
-        padding: 10px;
-        background: #f5f5f5;
-        border-radius: 4px;
-    }
-
-    .attendance-row label {
-        margin-right: 15px;
-    }
-
-    /* Add these styles for the data grid */
-    .data-grid {
-        width: 100%;
-        border-collapse: collapse;
-        margin-top: 20px;
-    }
-
-    .data-grid th, .data-grid td {
-        padding: 12px;
-        text-align: left;
-        border-bottom: 1px solid #ddd;
-    }
-
-    .data-grid th {
-        background-color: #f5f5f5;
-        font-weight: bold;
-    }
-
-    .data-grid tr:hover {
-        background-color: #f9f9f9;
-    }
-
-    .action-buttons {
-        display: flex;
-        gap: 8px;
-    }
-
-    .btn-edit, .btn-delete {
-        padding: 6px 12px;
-        border-radius: 4px;
-        cursor: pointer;
-        border: none;
-    }
-
-    .btn-edit {
-        background-color: #3498db;
-        color: white;
-    }
-
-    .btn-delete {
-        background-color: #e74c3c;
-        color: white;
-    }
-    </style>
 
     <script>
     // Event listeners and initialization
