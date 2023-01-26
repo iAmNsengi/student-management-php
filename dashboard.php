@@ -32,37 +32,8 @@ $profile = $user->getProfile();
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-    <script>
-// Utility functions
-async function fetchAPI(endpoint, options = {}) {
-    const defaultOptions = {
-        credentials: 'include', // Important for sending cookies
-        headers: {
-            'Content-Type': 'application/json',
-        }
-    };
+    <script src="scripts/fetchApi.js"></script>
 
-    try {
-        const response = await fetch(`api/endpoints.php?endpoint=${endpoint}`, {
-            ...defaultOptions,
-            ...options,
-        });
-
-        if (!response.ok) {
-            if (response.status === 401) {
-                window.location.href = 'auth/login.php';
-                return;
-            }
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        return await response.json();
-    } catch (error) {
-        console.error('API Error:', error);
-        throw error;
-    }
-}
-</script>
 </head>
 <body>
     <div class="dashboard-container">
@@ -235,26 +206,8 @@ async function fetchAPI(endpoint, options = {}) {
         </main>
     </div>
 
-    <!-- Add these modal forms just before the closing </body> tag -->
 
-    <!-- Add Course Modal -->
-    <div id="addCourseModal" class="modal">
-        <div class="modal-content">
-            <span class="close">&times;</span>
-            <h2>Add New Course</h2>
-            <form id="addCourseForm">
-                <div class="form-group">
-                    <label for="courseName">Course Name</label>
-                    <input type="text" id="courseName" name="name" required>
-                </div>
-                <div class="form-group">
-                    <label for="courseSchedule">Schedule</label>
-                    <input type="text" id="courseSchedule" name="schedule" placeholder="e.g., Mon/Wed 10:00-11:30" required>
-                </div>
-                <button type="submit" class="btn-primary">Create Course</button>
-            </form>
-        </div>
-    </div>
+ 
 
     <!-- Add Grade Modal -->
     <div id="addGradeModal" class="modal">

@@ -1,0 +1,24 @@
+<!-- Add Course Modal -->
+<div id="addCourseModal" class="modal">
+  <div class="modal-content">
+    <span class="close">&times;</span>
+    <h2>Add New Course</h2>
+    <form id="addCourseForm">
+      <div class="form-group">
+        <label for="courseName">Course Name</label>
+        <input type="text" id="courseName" name="name" required />
+      </div>
+      <div class="form-group">
+        <label for="courseSchedule">Schedule</label>
+        <input
+          type="text"
+          id="courseSchedule"
+          name="schedule"
+          placeholder="e.g., Mon/Wed 10:00-11:30"
+          required
+        />
+      </div>
+      <button type="submit" class="btn-primary">Create Course</button>
+    </form>
+  </div>
+</div>
