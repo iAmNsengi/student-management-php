@@ -205,14 +205,9 @@ $profile = $user->getProfile();
             </div>
         </main>
     </div>
-
-
- 
-
-
-
-   
-
+ <?php include 'modals/addCourse.html'; ?>
+ <?php include 'modals/addGrade.html'; ?>
+ <?php include 'modals/markAttendance.html'; ?>
     <script>
     // Navigation handling
     document.querySelectorAll('.nav-item').forEach(item => {
