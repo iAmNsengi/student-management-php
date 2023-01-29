@@ -248,6 +248,14 @@ $profile = $user->getProfile();
                 case 'manage-attendance':
                     await loadAttendance();
                     break;
+                case 'reports':
+                    await loadReports();
+                    break;
+                case 'profile':
+                    await loadProfile();
+                    break;
+                default:
+                    console.warn(`No loader defined for panel: ${panel}`);
             }
         } catch (error) {
             console.error('Error loading panel data:', error);
@@ -660,11 +668,57 @@ $profile = $user->getProfile();
     // Load data functions
     async function loadCourses() {
         try {
+            const panel = document.querySelector('.panel.active').id;
             const response = await fetchAPI('view_courses');
-            console.log(response);
             
             if (response.success) {
-                updateCoursesDisplay(response.data);
+                if (panel === 'my-courses') {
+                    // Student view
+                    const coursesList = document.querySelector('#courses-list');
+                    if (coursesList) {
+                        coursesList.innerHTML = response.data.length ? response.data.map(course => `
+                            <div class="course-card">
+                                <h3>${course.name}</h3>
+                                <p><i class="fas fa-clock"></i> Schedule: ${course.schedule}</p>
+                                <p><i class="fas fa-chalkboard-teacher"></i> Teacher: ${course.teacher_name || 'Not Assigned'}</p>
+                                <p class="enrollment-status">
+                                    <i class="fas ${course.is_enrolled ? 'fa-check-circle' : 'fa-circle'}"></i>
+                                    ${course.is_enrolled ? 'Enrolled' : 'Not Enrolled'}
+                                </p>
+                            </div>
+                        `).join('') : '<p class="no-courses">No courses found</p>';
+                    }
+                } else if (panel === 'manage-courses') {
+                    // Teacher view
+                    const coursesList = document.querySelector('#manage-courses-list');
+                    if (coursesList) {
+                        coursesList.innerHTML = `
+                            <table class="data-grid">
+                                <thead>
+                                    <tr>
+                                        <th>Course Name</th>
+                                        <th>Schedule</th>
+                                        <th>Students Enrolled</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${response.data.length ? response.data.map(course => `
+                                        <tr>
+                                            <td>${course.name}</td>
+                                            <td>${course.schedule}</td>
+                                            <td>${course.enrolled_count || 0}</td>
+                                            <td class="action-buttons">
+                                                <button class="btn-edit" onclick="editCourse(${course.id})">Edit</button>
+                                                <button class="btn-delete" onclick="deleteCourse(${course.id})">Delete</button>
+                                            </td>
+                                        </tr>
+                                    `).join('') : '<tr><td colspan="4">No courses found</td></tr>'}
+                                </tbody>
+                            </table>
+                        `;
+                    }
+                }
             } else {
                 console.error('Failed to load courses:', response.error);
             }
@@ -673,76 +727,75 @@ $profile = $user->getProfile();
         }
     }
 
-    function updateCoursesDisplay(courses) {
-        const coursesList = document.querySelector('#courses-list');
-        if (coursesList) {
-            coursesList.innerHTML = courses.length ? courses.map(course => `
-                <div class="course-card">
-                    <h3>${course.name}</h3>
-                    <p><i class="fas fa-clock"></i> Schedule: ${course.schedule}</p>
-                    <p><i class="fas fa-chalkboard-teacher"></i> Teacher: ${course.teacher_name || 'Not Assigned'}</p>
-                    ${course.is_enrolled !== undefined ? `
-                        <p class="enrollment-status">
-                            <i class="fas ${course.is_enrolled ? 'fa-check-circle' : 'fa-circle'}"></i>
-                            ${course.is_enrolled ? 'Enrolled' : 'Not Enrolled'}
-                        </p>
-                    ` : ''}
-                    ${course.is_teaching !== undefined ? `
-                        <p class="teaching-status">
-                            <i class="fas ${course.is_teaching ? 'fa-star' : 'fa-star-o'}"></i>
-                            ${course.is_teaching ? 'Teaching' : 'Other Course'}
-                        </p>
-                    ` : ''}
-                </div>
-            `).join('') : '<p class="no-courses">No courses found</p>';
-        }
-
-        // Update courses count if element exists
-        const coursesCount = document.getElementById('courses-count');
-        if (coursesCount) {
-            coursesCount.textContent = courses.length;
-        }
-    }
-
     async function loadGrades() {
         try {
-            const response = await fetch('api/endpoints.php?endpoint=view_grades');
-            const grades = await response.json();
+            const panel = document.querySelector('.panel.active').id;
+            const response = await fetchAPI('view_grades');
             
-            updateGradesList(grades);
+            if (response.success) {
+                if (panel === 'my-grades') {
+                    // Student view
+                    const gradesList = document.querySelector('#grades-list');
+                    if (gradesList) {
+                        gradesList.innerHTML = `
+                            <table class="data-grid">
+                                <thead>
+                                    <tr>
+                                        <th>Course</th>
+                                        <th>Grade</th>
+                                        <th>Date</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${response.data.length ? response.data.map(grade => `
+                                        <tr>
+                                            <td>${grade.course_name}</td>
+                                            <td>${grade.grade}%</td>
+                                            <td>${grade.date}</td>
+                                        </tr>
+                                    `).join('') : '<tr><td colspan="3">No grades found</td></tr>'}
+                                </tbody>
+                            </table>
+                        `;
+                    }
+                } else if (panel === 'manage-grades') {
+                    // Teacher view
+                    const gradesList = document.querySelector('#manage-grades-list');
+                    if (gradesList) {
+                        gradesList.innerHTML = `
+                            <table class="data-grid">
+                                <thead>
+                                    <tr>
+                                        <th>Student</th>
+                                        <th>Course</th>
+                                        <th>Grade</th>
+                                        <th>Date</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${response.data.length ? response.data.map(grade => `
+                                        <tr>
+                                            <td>${grade.student_name}</td>
+                                            <td>${grade.course_name}</td>
+                                            <td>${grade.grade}%</td>
+                                            <td>${grade.date}</td>
+                                            <td class="action-buttons">
+                                                <button class="btn-edit" onclick="editGrade(${grade.id})">Edit</button>
+                                                <button class="btn-delete" onclick="deleteGrade(${grade.id})">Delete</button>
+                                            </td>
+                                        </tr>
+                                    `).join('') : '<tr><td colspan="5">No grades found</td></tr>'}
+                                </tbody>
+                            </table>
+                        `;
+                    }
+                }
+            } else {
+                console.error('Failed to load grades:', response.error);
+            }
         } catch (error) {
-            console.error('Error:', error);
-        }
-    }
-
-    function updateGradesList(grades) {
-        const gradesList = document.querySelector('#grades-list');
-        if (gradesList) {
-            gradesList.innerHTML = `
-                <table class="data-grid">
-                    <thead>
-                        <tr>
-                            <th>Student</th>
-                            <th>Course</th>
-                            <th>Grade</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${grades.length ? grades.map(grade => `
-                            <tr>
-                                <td>${grade.student_name}</td>
-                                <td>${grade.course_name}</td>
-                                <td>${grade.grade}%</td>
-                                <td class="action-buttons">
-                                    <button class="btn-edit" onclick="editGrade(${grade.id})">Edit</button>
-                                    <button class="btn-delete" onclick="deleteGrade(${grade.id})">Delete</button>
-                                </td>
-                            </tr>
-                        `).join('') : '<tr><td colspan="4">No grades found</td></tr>'}
-                    </tbody>
-                </table>
-            `;
+            console.error('Error loading grades:', error);
         }
     }
 
@@ -784,7 +837,53 @@ $profile = $user->getProfile();
         }
     }
 
-  
+    // Add missing functions for reports and profile
+    async function loadReports() {
+        try {
+            const response = await fetchAPI('view_reports');
+            if (response.success) {
+                const reportContainer = document.getElementById('report-container');
+                if (reportContainer) {
+                    // Clear previous content
+                    reportContainer.innerHTML = '';
+                    // Add new report data
+                    if (response.data && response.data.length > 0) {
+                        // Handle report data display
+                        reportContainer.innerHTML = `<div class="reports-list">${
+                            response.data.map(report => `
+                                <div class="report-item">
+                                    <h4>${report.title}</h4>
+                                    <p>${report.description}</p>
+                                    <span class="date">${report.date}</span>
+                                </div>
+                            `).join('')
+                        }</div>`;
+                    } else {
+                        reportContainer.innerHTML = '<p>No reports available</p>';
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Error loading reports:', error);
+        }
+    }
+
+    async function loadProfile() {
+        try {
+            const response = await fetchAPI('view_profile');
+            if (response.success) {
+                // Update profile form fields with current data
+                const fullNameInput = document.getElementById('full-name');
+                if (fullNameInput && response.data.full_name) {
+                    fullNameInput.value = response.data.full_name;
+                }
+                // Add any additional profile fields here
+            }
+        } catch (error) {
+            console.error('Error loading profile:', error);
+        }
+    }
+
     </script>
 
     <script>
