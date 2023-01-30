@@ -320,7 +320,8 @@ $profile = $user->getProfile();
         if (document.getElementById('active-courses')) {
             const coursesResponse = await fetch('api/endpoints.php?endpoint=view_courses');
             const coursesData = await coursesResponse.json();
-            document.getElementById('active-courses').textContent = coursesData.length;
+            
+            document.getElementById('active-courses').textContent = coursesData?.data?.length;
         }
         
         if (document.getElementById('today-classes')) {
@@ -872,18 +873,15 @@ $profile = $user->getProfile();
         try {
             const response = await fetchAPI('view_profile');
             if (response.success) {
-                // Update profile form fields with current data
                 const fullNameInput = document.getElementById('full-name');
                 if (fullNameInput && response.data.full_name) {
                     fullNameInput.value = response.data.full_name;
                 }
-                // Add any additional profile fields here
             }
         } catch (error) {
             console.error('Error loading profile:', error);
         }
     }
-
     </script>
 
     <script>
