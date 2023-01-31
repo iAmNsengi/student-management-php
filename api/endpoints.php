@@ -366,43 +366,80 @@ switch ($endpoint) {
     case 'view_overview':
         try {
             if ($role === 'Student') {
-                // Get student overview
+                // Get student overview with proper joins
                 $query = "SELECT 
-                            COUNT(DISTINCT c.id) as courses_count,
-                            AVG(g.grade) as average_grade,
-                            (SELECT COUNT(*) * 100.0 / NULLIF(COUNT(*), 0) 
+                            (SELECT COUNT(*) 
+                             FROM Student_Courses sc 
+                             JOIN Students s ON sc.student_id = s.id 
+                             WHERE s.user_id = ?) as courses_count,
+                            
+                            (SELECT AVG(g.grade) 
+                             FROM Grades g 
+                             JOIN Students s ON g.student_id = s.id 
+                             WHERE s.user_id = ?) as average_grade,
+                            
+                            (SELECT 
+                                CASE 
+                                    WHEN COUNT(*) = 0 THEN 0 
+                                    ELSE (SUM(CASE WHEN a.status = 'present' THEN 1 ELSE 0 END) * 100.0 / COUNT(*))
+                                END
                              FROM Attendance a 
                              JOIN Students s ON a.student_id = s.id 
-                             WHERE s.user_id = ? AND a.status = 'present') as attendance_rate
-                         FROM Students s
-                         LEFT JOIN Student_Courses sc ON s.id = sc.student_id
-                         LEFT JOIN Courses c ON sc.course_id = c.id
-                         LEFT JOIN Grades g ON s.id = g.student_id
-                         WHERE s.user_id = ?";
+                             WHERE s.user_id = ?) as attendance_rate";
                 
                 $stmt = $db->prepare($query);
-                $stmt->execute([$_SESSION['user_id'], $_SESSION['user_id']]);
+                $stmt->execute([
+                    $_SESSION['user_id'],
+                    $_SESSION['user_id'],
+                    $_SESSION['user_id']
+                ]);
             } else {
-                // Get teacher overview
+                // Get teacher overview with proper joins through teacher's courses
                 $query = "SELECT 
-                            COUNT(DISTINCT s.id) as students_count,
-                            COUNT(DISTINCT c.id) as courses_count,
-                            AVG(g.grade) as average_grade
-                         FROM Teachers t
-                         LEFT JOIN Courses c ON t.user_id = c.teacher_id
-                         LEFT JOIN Student_Courses sc ON c.id = sc.course_id
-                         LEFT JOIN Students s ON sc.student_id = s.id
-                         LEFT JOIN Grades g ON s.id = g.student_id
-                         WHERE t.user_id = ?";
+                            (SELECT COUNT(DISTINCT s.id) 
+                             FROM Teachers t
+                             JOIN Courses c ON t.user_id = c.teacher_id
+                             JOIN Student_Courses sc ON c.id = sc.course_id
+                             JOIN Students s ON sc.student_id = s.id
+                             WHERE t.user_id = ?) as students_count,
+                            
+                            (SELECT COUNT(*) 
+                             FROM Teachers t
+                             JOIN Courses c ON t.user_id = c.teacher_id
+                             WHERE t.user_id = ?) as courses_count,
+                            
+                            (SELECT AVG(g.grade)
+                             FROM Teachers t
+                             JOIN Courses c ON t.user_id = c.teacher_id
+                             JOIN Student_Courses sc ON c.id = sc.course_id
+                             JOIN Grades g ON sc.student_id = g.student_id AND sc.course_id = g.course_id
+                             WHERE t.user_id = ?) as average_grade";
                 
                 $stmt = $db->prepare($query);
-                $stmt->execute([$_SESSION['user_id']]);
+                $stmt->execute([
+                    $_SESSION['user_id'],
+                    $_SESSION['user_id'],
+                    $_SESSION['user_id']
+                ]);
             }
             
             $overview = $stmt->fetch(PDO::FETCH_ASSOC);
             $overview['role'] = $role;
+            
+            // Convert numeric strings to proper numbers
+            $overview['courses_count'] = intval($overview['courses_count']);
+            $overview['average_grade'] = $overview['average_grade'] ? round(floatval($overview['average_grade']), 2) : 0;
+            if (isset($overview['attendance_rate'])) {
+                $overview['attendance_rate'] = $overview['attendance_rate'] ? round(floatval($overview['attendance_rate']), 2) : 0;
+            }
+            if (isset($overview['students_count'])) {
+                $overview['students_count'] = intval($overview['students_count']);
+            }
+            
+            debug_log("Overview data:", $overview);
             echo json_encode($overview);
         } catch (PDOException $e) {
+            debug_log("Error in view_overview: " . $e->getMessage());
             http_response_code(500);
             echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
         }

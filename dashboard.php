@@ -267,6 +267,9 @@ $profile = $user->getProfile();
         try {
             const response = await fetch('api/endpoints.php?endpoint=view_overview');
             const data = await response.json();
+
+            console.log(data);
+            
             
             // Update dashboard cards
             updateDashboardCards(data);
@@ -342,32 +345,33 @@ $profile = $user->getProfile();
         }
         
         // Create new chart based on user role
-        if (document.getElementById('average-grade')) {
-            // Debug what's in data
-            console.log('Chart data received:', data);
-            
-            // Ensure data is an array
-            let chartData = [];
-            if (Array.isArray(data)) {
-                chartData = data.filter(item => item.grade != null);
-            } else if (data && typeof data === 'object') {
-                // If data is an object, try to convert it to array
-                chartData = Object.values(data)?.filter(item => item?.grade != null);
-            }
-            
-            console.log('Processed chart data:', chartData);
+        if (data.role === 'Student') {
+            // Create a simple bar chart for student overview
+
+            console.log(data);
             
             window.overviewChart = new Chart(ctx, {
-                type: 'line',
+                type: 'bar',
                 data: {
-                    labels: chartData.map(item => item.course_name || 'Unknown Course'),
+                    labels: ['Courses', 'Average Grade', 'Attendance Rate'],
                     datasets: [{
-                        label: 'Grades by Course',
-                        data: chartData.map(item => parseFloat(item.grade) || 0),
-                        borderColor: 'rgb(75, 192, 192)',
-                        backgroundColor: 'rgba(75, 192, 192, 0.2)',
-                        tension: 0.1,
-                        fill: true
+                        label: 'Student Overview',
+                        data: [
+                            data.courses_count || 0,
+                            parseFloat(data.average_grade) || 0,
+                            data.attendance_rate || 0
+                        ],
+                        backgroundColor: [
+                            'rgba(255, 99, 132, 0.2)',
+                            'rgba(75, 192, 192, 0.2)',
+                            'rgba(54, 162, 235, 0.2)'
+                        ],
+                        borderColor: [
+                            'rgba(255, 99, 132, 1)',
+                            'rgba(75, 192, 192, 1)',
+                            'rgba(54, 162, 235, 1)'
+                        ],
+                        borderWidth: 1
                     }]
                 },
                 options: {
@@ -378,7 +382,7 @@ $profile = $user->getProfile();
                             max: 100,
                             title: {
                                 display: true,
-                                text: 'Grade (%)'
+                                text: 'Value'
                             }
                         }
                     },
@@ -390,7 +394,18 @@ $profile = $user->getProfile();
                         tooltip: {
                             callbacks: {
                                 label: function(context) {
-                                    return `Grade: ${context.parsed.y}%`;
+                                    const label = context.dataset.label || '';
+                                    const value = context.parsed.y;
+                                    const metric = context.label;
+                                    
+                                    if (metric === 'Courses') {
+                                        return `${label}: ${value} courses`;
+                                    } else if (metric === 'Average Grade') {
+                                        return `${label}: ${value}%`;
+                                    } else if (metric === 'Attendance Rate') {
+                                        return `${label}: ${value}%`;
+                                    }
+                                    return `${label}: ${value}`;
                                 }
                             }
                         }
@@ -398,27 +413,27 @@ $profile = $user->getProfile();
                 }
             });
         } else {
-            // Teacher chart
+            // Teacher view chart (if needed)
             window.overviewChart = new Chart(ctx, {
                 type: 'bar',
                 data: {
-                    labels: ['Assignments', 'Attendance', 'Average Grade'],
+                    labels: ['Total Students', 'Active Courses', 'Average Class Grade'],
                     datasets: [{
-                        label: 'Class Statistics',
+                        label: 'Teacher Overview',
                         data: [
-                            data.assignments_completed,
-                            data.attendance_rate,
-                            data.class_average
+                            data.students_count || 0,
+                            data.courses_count || 0,
+                            parseFloat(data.class_average) || 0
                         ],
                         backgroundColor: [
                             'rgba(255, 99, 132, 0.2)',
-                            'rgba(54, 162, 235, 0.2)',
-                            'rgba(75, 192, 192, 0.2)'
+                            'rgba(75, 192, 192, 0.2)',
+                            'rgba(54, 162, 235, 0.2)'
                         ],
                         borderColor: [
                             'rgba(255, 99, 132, 1)',
-                            'rgba(54, 162, 235, 1)',
-                            'rgba(75, 192, 192, 1)'
+                            'rgba(75, 192, 192, 1)',
+                            'rgba(54, 162, 235, 1)'
                         ],
                         borderWidth: 1
                     }]
@@ -428,7 +443,16 @@ $profile = $user->getProfile();
                     scales: {
                         y: {
                             beginAtZero: true,
-                            max: 100
+                            title: {
+                                display: true,
+                                text: 'Value'
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top'
                         }
                     }
                 }
@@ -823,7 +847,6 @@ $profile = $user->getProfile();
                             </table>
                         `;
                 }
-            f
         } catch (error) {
             console.error('Error loading grades:', error);
         }
