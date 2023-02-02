@@ -379,8 +379,8 @@ switch ($endpoint) {
                              FROM Attendance a) as attendance_rate";
             } else {
                 $query = "SELECT 
-                            (SELECT COUNT(DISTINCT student_id) 
-                             FROM Courses) as students_count,
+                            (SELECT COUNT(*) 
+                             FROM Students) as students_count,
                             
                             (SELECT COUNT(*) 
                              FROM Courses) as courses_count,
