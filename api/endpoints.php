@@ -46,7 +46,8 @@ $allowed_endpoints = [
         'update_profile', 
         'get_profile', 
         'view_today_classes',
-        'view_overview'
+        'view_overview',
+        'view_reports'
     ],
     'Teacher' => [
         'view_grades', 
@@ -59,7 +60,8 @@ $allowed_endpoints = [
         'update_profile', 
         'get_profile', 
         'view_today_classes',
-        'view_overview'
+        'view_overview',
+        'view_reports'
     ]
 ];
 
@@ -503,6 +505,65 @@ switch ($endpoint) {
                 echo json_encode(['success' => false, 'message' => 'Registration failed']);
             }
         } catch (PDOException $e) {
+            http_response_code(500);
+            echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
+        }
+        break;
+
+    case 'view_reports':
+        require_once "../modules/reports/ReportGenerator.php";
+        $reporter = new ReportGenerator($db);
+        
+        $report_type = $_GET['type'] ?? '';
+        $class = $_GET['class'] ?? null;
+        $start_date = $_GET['start_date'] ?? null;
+        $end_date = $_GET['end_date'] ?? null;
+        
+        try {
+            switch($report_type) {
+                case 'attendance':
+                    $data = $reporter->generateAttendanceReport($class, $start_date, $end_date);
+                    break;
+                    
+                case 'grades':
+                    $data = $reporter->generateGradeReport($class);
+                    break;
+                    
+                default:
+                    http_response_code(400);
+                    echo json_encode(['error' => 'Invalid report type. Available types: attendance, grades']);
+                    exit;
+            }
+            
+            // Format the data for better readability
+            if ($report_type === 'attendance') {
+                foreach ($data as &$record) {
+                    $record['attendance_percentage'] = round(floatval($record['attendance_percentage']), 2);
+                    $record['present_days'] = intval($record['present_days']);
+                    $record['absent_days'] = intval($record['absent_days']);
+                }
+            } else if ($report_type === 'grades') {
+                foreach ($data as &$record) {
+                    $record['average_grade'] = round(floatval($record['average_grade']), 2);
+                    $record['highest_grade'] = round(floatval($record['highest_grade']), 2);
+                    $record['lowest_grade'] = round(floatval($record['lowest_grade']), 2);
+                }
+            }
+            
+            debug_log("Generated $report_type report:", $data);
+            echo json_encode([
+                'success' => true,
+                'report_type' => $report_type,
+                'filters' => [
+                    'class' => $class,
+                    'start_date' => $start_date,
+                    'end_date' => $end_date
+                ],
+                'data' => $data
+            ]);
+            
+        } catch (PDOException $e) {
+            debug_log("Error generating report: " . $e->getMessage());
             http_response_code(500);
             echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
         }
