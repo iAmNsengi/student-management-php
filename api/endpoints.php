@@ -188,8 +188,6 @@ switch ($endpoint) {
 
     case 'view_courses':
         try {
-            debug_log("Viewing courses for user: " . $_SESSION['user_id'] . " with role: " . $role);
-            
             // Base query to get all courses with teacher names
             $query = "SELECT c.*, t.full_name as teacher_name 
                      FROM Courses c 
@@ -366,62 +364,33 @@ switch ($endpoint) {
     case 'view_overview':
         try {
             if ($role === 'Student') {
-                // Get student overview with proper joins
                 $query = "SELECT 
                             (SELECT COUNT(*) 
-                             FROM Student_Courses sc 
-                             JOIN Students s ON sc.student_id = s.id 
-                             WHERE s.user_id = ?) as courses_count,
+                             FROM Courses) as courses_count,
                             
-                            (SELECT AVG(g.grade) 
-                             FROM Grades g 
-                             JOIN Students s ON g.student_id = s.id 
-                             WHERE s.user_id = ?) as average_grade,
+                            (SELECT COALESCE(AVG(g.grade), 0)
+                             FROM Grades g) as average_grade,
                             
                             (SELECT 
                                 CASE 
                                     WHEN COUNT(*) = 0 THEN 0 
                                     ELSE (SUM(CASE WHEN a.status = 'present' THEN 1 ELSE 0 END) * 100.0 / COUNT(*))
                                 END
-                             FROM Attendance a 
-                             JOIN Students s ON a.student_id = s.id 
-                             WHERE s.user_id = ?) as attendance_rate";
-                
-                $stmt = $db->prepare($query);
-                $stmt->execute([
-                    $_SESSION['user_id'],
-                    $_SESSION['user_id'],
-                    $_SESSION['user_id']
-                ]);
+                             FROM Attendance a) as attendance_rate";
             } else {
-                // Get teacher overview with proper joins through teacher's courses
                 $query = "SELECT 
-                            (SELECT COUNT(DISTINCT s.id) 
-                             FROM Teachers t
-                             JOIN Courses c ON t.user_id = c.teacher_id
-                             JOIN Student_Courses sc ON c.id = sc.course_id
-                             JOIN Students s ON sc.student_id = s.id
-                             WHERE t.user_id = ?) as students_count,
+                            (SELECT COUNT(DISTINCT student_id) 
+                             FROM Courses) as students_count,
                             
                             (SELECT COUNT(*) 
-                             FROM Teachers t
-                             JOIN Courses c ON t.user_id = c.teacher_id
-                             WHERE t.user_id = ?) as courses_count,
+                             FROM Courses) as courses_count,
                             
-                            (SELECT AVG(g.grade)
-                             FROM Teachers t
-                             JOIN Courses c ON t.user_id = c.teacher_id
-                             JOIN Student_Courses sc ON c.id = sc.course_id
-                             JOIN Grades g ON sc.student_id = g.student_id AND sc.course_id = g.course_id
-                             WHERE t.user_id = ?) as average_grade";
-                
-                $stmt = $db->prepare($query);
-                $stmt->execute([
-                    $_SESSION['user_id'],
-                    $_SESSION['user_id'],
-                    $_SESSION['user_id']
-                ]);
+                            (SELECT COALESCE(AVG(grade), 0)
+                             FROM Grades) as average_grade";
             }
+            
+            $stmt = $db->prepare($query);
+            $stmt->execute();
             
             $overview = $stmt->fetch(PDO::FETCH_ASSOC);
             $overview['role'] = $role;
