@@ -893,31 +893,104 @@ $profile = $user->getProfile();
     // Add missing functions for reports and profile
     async function loadReports() {
         try {
-            const response = await fetchAPI('view_reports');
-            if (response.success) {
-                const reportContainer = document.getElementById('report-container');
-                if (reportContainer) {
-                    // Clear previous content
-                    reportContainer.innerHTML = '';
-                    // Add new report data
-                    if (response.data && response.data.length > 0) {
-                        // Handle report data display
-                        reportContainer.innerHTML = `<div class="reports-list">${
-                            response.data.map(report => `
-                                <div class="report-item">
-                                    <h4>${report.title}</h4>
-                                    <p>${report.description}</p>
-                                    <span class="date">${report.date}</span>
-                                </div>
-                            `).join('')
-                        }</div>`;
-                    } else {
-                        reportContainer.innerHTML = '<p>No reports available</p>';
-                    }
-                }
-            }
+            const reportContainer = document.getElementById('report-container');
+            if (!reportContainer) return;
+
+            // Clear previous content
+            reportContainer.innerHTML = `
+                <div class="report-filters">
+                    <select id="report-class" class="form-control">
+                        <option value="">All Classes</option>
+                        <option value="10A">Class 10A</option>
+                        <option value="10B">Class 10B</option>
+                    </select>
+                    <input type="date" id="report-start-date" class="form-control">
+                    <input type="date" id="report-end-date" class="form-control">
+                </div>
+                <div id="report-results"></div>
+            `;
         } catch (error) {
             console.error('Error loading reports:', error);
+        }
+    }
+
+    async function generateReport(type) {
+        try {
+            const classFilter = document.getElementById('report-class').value;
+            const startDate = document.getElementById('report-start-date').value;
+            const endDate = document.getElementById('report-end-date').value;
+            
+            let url = `api/reports/generate.php?type=${type}`;
+            if (classFilter) url += `&class=${classFilter}`;
+            if (startDate) url += `&start_date=${startDate}`;
+            if (endDate) url += `&end_date=${endDate}`;
+
+            const response = await fetch(url);
+            const data = await response.json();
+
+            const reportResults = document.getElementById('report-results');
+            if (!reportResults) return;
+
+            if (type === 'attendance') {
+                reportResults.innerHTML = `
+                    <h3>Attendance Report</h3>
+                    <table class="data-grid">
+                        <thead>
+                            <tr>
+                                <th>Student Name</th>
+                                <th>Class</th>
+                                <th>Present Days</th>
+                                <th>Absent Days</th>
+                                <th>Attendance Rate</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${data.map(record => `
+                                <tr>
+                                    <td>${record.full_name}</td>
+                                    <td>${record.class}</td>
+                                    <td>${record.present_days}</td>
+                                    <td>${record.absent_days}</td>
+                                    <td>${record.attendance_percentage}%</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+            } else if (type === 'grades') {
+                reportResults.innerHTML = `
+                    <h3>Grades Report</h3>
+                    <table class="data-grid">
+                        <thead>
+                            <tr>
+                                <th>Student Name</th>
+                                <th>Course</th>
+                                <th>Average Grade</th>
+                                <th>Highest Grade</th>
+                                <th>Lowest Grade</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${data.map(record => `
+                                <tr>
+                                    <td>${record.full_name}</td>
+                                    <td>${record.course_name}</td>
+                                    <td>${record.average_grade}%</td>
+                                    <td>${record.highest_grade}%</td>
+                                    <td>${record.lowest_grade}%</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+            }
+        } catch (error) {
+            console.error('Error generating report:', error);
+            document.getElementById('report-results').innerHTML = `
+                <div class="error-message">
+                    Error generating report. Please try again.
+                </div>
+            `;
         }
     }
 
