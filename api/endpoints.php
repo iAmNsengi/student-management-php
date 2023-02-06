@@ -161,16 +161,26 @@ switch ($endpoint) {
         }
 
         $data = json_decode(file_get_contents('php://input'), true);
-
-        if (!isset($data['student_id']) || !isset($data['course_id']) || !isset($data['date']) || !isset($data['status'])) {
+        
+        if (!isset($data['student_id']) || !isset($data['course_id']) || 
+            !isset($data['date']) || !isset($data['status'])) {
             http_response_code(400);
             echo json_encode(['error' => 'Missing required fields']);
             exit;
         }
 
         try {
-            $query = "INSERT INTO Attendance (student_id, course_id, date, status) VALUES (:student_id, :course_id, :date, :status)
-                      ON DUPLICATE KEY UPDATE status = :status";
+            // Verify teacher owns the course
+            $stmt = $db->prepare("SELECT 1 FROM Courses WHERE id = ? AND teacher_id = ?");
+            $stmt->execute([$data['course_id'], $_SESSION['user_id']]);
+            if (!$stmt->fetch()) {
+                throw new Exception('Unauthorized to mark attendance for this course');
+            }
+
+            $query = "INSERT INTO Attendance (student_id, course_id, date, status) 
+                     VALUES (:student_id, :course_id, :date, :status)
+                     ON DUPLICATE KEY UPDATE status = :status";
+            
             $stmt = $db->prepare($query);
             $stmt->bindParam(':student_id', $data['student_id']);
             $stmt->bindParam(':course_id', $data['course_id']);
@@ -180,11 +190,11 @@ switch ($endpoint) {
             if ($stmt->execute()) {
                 echo json_encode(['success' => true, 'message' => 'Attendance marked successfully']);
             } else {
-                echo json_encode(['success' => false, 'message' => 'Failed to mark attendance']);
+                throw new Exception('Failed to mark attendance');
             }
-        } catch (PDOException $e) {
-            http_response_code(500);
-            echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
+        } catch (Exception $e) {
+            http_response_code(400);
+            echo json_encode(['error' => $e->getMessage()]);
         }
         break;
 
@@ -566,6 +576,56 @@ switch ($endpoint) {
             debug_log("Error generating report: " . $e->getMessage());
             http_response_code(500);
             echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
+        }
+        break;
+
+    case 'enroll_student':
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            http_response_code(405);
+            echo json_encode(['error' => 'Method not allowed']);
+            exit;
+        }
+
+        $data = json_decode(file_get_contents('php://input'), true);
+        
+        if (!isset($data['course_id'])) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Missing course_id']);
+            exit;
+        }
+
+        try {
+            // Get student_id from the user_id
+            $stmt = $db->prepare("SELECT id FROM Students WHERE user_id = ?");
+            $stmt->execute([$_SESSION['user_id']]);
+            $student = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$student) {
+                throw new Exception('Student not found');
+            }
+
+            $query = "INSERT INTO Student_Courses (student_id, course_id) 
+                     VALUES (:student_id, :course_id)";
+            $stmt = $db->prepare($query);
+            $stmt->bindValue(':student_id', $student['id']);
+            $stmt->bindValue(':course_id', $data['course_id']);
+            
+            if ($stmt->execute()) {
+                echo json_encode(['success' => true, 'message' => 'Successfully enrolled in course']);
+            } else {
+                throw new Exception('Failed to enroll in course');
+            }
+        } catch (PDOException $e) {
+            if ($e->getCode() == 23000) { // Duplicate entry error
+                http_response_code(409);
+                echo json_encode(['error' => 'Already enrolled in this course']);
+            } else {
+                http_response_code(500);
+                echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
+            }
+        } catch (Exception $e) {
+            http_response_code(400);
+            echo json_encode(['error' => $e->getMessage()]);
         }
         break;
 

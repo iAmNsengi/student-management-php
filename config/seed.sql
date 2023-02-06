@@ -72,12 +72,13 @@ CREATE TABLE IF NOT EXISTS Attendance (
 
 -- Create Student_Courses table
 CREATE TABLE IF NOT EXISTS Student_Courses (
+    id INT AUTO_INCREMENT PRIMARY KEY,
     student_id INT NOT NULL,
     course_id INT NOT NULL,
     enrollment_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (student_id, course_id),
-    FOREIGN KEY (student_id) REFERENCES Students(id) ON DELETE CASCADE,
-    FOREIGN KEY (course_id) REFERENCES Courses(id) ON DELETE CASCADE
+    FOREIGN KEY (student_id) REFERENCES Students(id),
+    FOREIGN KEY (course_id) REFERENCES Courses(id),
+    UNIQUE KEY unique_enrollment (student_id, course_id)
 );
 
 -- Insert some sample data for testing
@@ -95,3 +96,14 @@ INSERT INTO Students (user_id, full_name, class) VALUES
 INSERT INTO Courses (name, teacher_id, schedule) VALUES
 ('Mathematics 101', 1, 'Monday 9:00-10:30'),
 ('Advanced Algebra', 1, 'Wednesday 11:00-12:30');
+
+-- Add constraints to Grades table
+ALTER TABLE Grades
+MODIFY grade DECIMAL(5,2) NOT NULL,
+ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+
+-- Modify Attendance table to include course_id
+ALTER TABLE Attendance 
+ADD COLUMN course_id INT NOT NULL AFTER student_id,
+ADD FOREIGN KEY (course_id) REFERENCES Courses(id),
+MODIFY status ENUM('present', 'absent', 'late') NOT NULL;
