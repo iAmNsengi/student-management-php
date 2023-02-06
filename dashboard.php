@@ -182,34 +182,17 @@ $profile = $user->getProfile();
                 <div id="report-container"></div>
             </div>
             <?php endif; ?>
-            
-            <div class="panel" id="profile">
-                <h2>My Profile</h2>
-                <div class="profile-details">
-                    <form id="profile-form">
-                        <div class="form-group">
-                            <label>Full Name</label>
-                            <input type="text" id="full-name" value="<?php echo htmlspecialchars($profile['full_name']); ?>">
-                        </div>
-                        <div class="form-group">
-                            <label>Username</label>
-                            <input type="text" value="<?php echo htmlspecialchars($profile['username']); ?>" disabled>
-                        </div>
-                        <div class="form-group">
-                            <label>Role</label>
-                            <input type="text" value="<?php echo htmlspecialchars($profile['role']); ?>" disabled>
-                        </div>
-                        <button type="submit" class="btn-primary">Update Profile</button>
-                    </form>
-                </div>
-            </div>
+              
         </main>
     </div>
  <?php include 'modals/addCourse.html'; ?>
+ <?php include 'modals/index.html'; ?>
+
  <?php include 'modals/addGrade.html'; ?>
  <?php include 'modals/markAttendance.html'; ?>
+
+ <script src="./scripts/updateOverviewChart.js"></script>
     <script>
-    // Navigation handling
     document.querySelectorAll('.nav-item').forEach(item => {
         item.addEventListener('click', function(e) {
             if (this.getAttribute('href') === '#') {
@@ -267,14 +250,7 @@ $profile = $user->getProfile();
         try {
             const response = await fetch('api/endpoints.php?endpoint=view_overview');
             const data = await response.json();
-
-            console.log(data);
-            
-            
-            // Update dashboard cards
             updateDashboardCards(data);
-            
-            // Update overview chart
             updateOverviewChart(data);
         } catch (error) {
             console.error('Error loading overview data:', error);
@@ -335,130 +311,7 @@ $profile = $user->getProfile();
         }
     }
 
-    // Update overview chart
-    function updateOverviewChart(data) {
-        const ctx = document.getElementById('overview-chart').getContext('2d');
-        
-        // Destroy existing chart if it exists
-        if (window.overviewChart) {
-            window.overviewChart.destroy();
-        }
-        
-        // Create new chart based on user role
-        if (data.role === 'Student') {
-            // Create a simple bar chart for student overview
-
-            console.log(data);
-            
-            window.overviewChart = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: ['Courses', 'Average Grade', 'Attendance Rate'],
-                    datasets: [{
-                        label: 'Student Overview',
-                        data: [
-                            data.courses_count || 0,
-                            parseFloat(data.average_grade) || 0,
-                            data.attendance_rate || 0
-                        ],
-                        backgroundColor: [
-                            'rgba(255, 99, 132, 0.2)',
-                            'rgba(75, 192, 192, 0.2)',
-                            'rgba(54, 162, 235, 0.2)'
-                        ],
-                        borderColor: [
-                            'rgba(255, 99, 132, 1)',
-                            'rgba(75, 192, 192, 1)',
-                            'rgba(54, 162, 235, 1)'
-                        ],
-                        borderWidth: 1
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            max: 100,
-                            title: {
-                                display: true,
-                                text: 'Value'
-                            }
-                        }
-                    },
-                    plugins: {
-                        legend: {
-                            display: true,
-                            position: 'top'
-                        },
-                        tooltip: {
-                            callbacks: {
-                                label: function(context) {
-                                    const label = context.dataset.label || '';
-                                    const value = context.parsed.y;
-                                    const metric = context.label;
-                                    
-                                    if (metric === 'Courses') {
-                                        return `${label}: ${value} courses`;
-                                    } else if (metric === 'Average Grade') {
-                                        return `${label}: ${value}%`;
-                                    } else if (metric === 'Attendance Rate') {
-                                        return `${label}: ${value}%`;
-                                    }
-                                    return `${label}: ${value}`;
-                                }
-                            }
-                        }
-                    }
-                }
-            });
-        } else {
-            // Teacher view chart (if needed)
-            window.overviewChart = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: ['Total Students', 'Active Courses', 'Average Class Grade'],
-                    datasets: [{
-                        label: 'Teacher Overview',
-                        data: [
-                            data.students_count || 0,
-                            data.courses_count || 0,
-                            parseFloat(data.class_average) || 0
-                        ],
-                        backgroundColor: [
-                            'rgba(255, 99, 132, 0.2)',
-                            'rgba(75, 192, 192, 0.2)',
-                            'rgba(54, 162, 235, 0.2)'
-                        ],
-                        borderColor: [
-                            'rgba(255, 99, 132, 1)',
-                            'rgba(75, 192, 192, 1)',
-                            'rgba(54, 162, 235, 1)'
-                        ],
-                        borderWidth: 1
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            title: {
-                                display: true,
-                                text: 'Value'
-                            }
-                        }
-                    },
-                    plugins: {
-                        legend: {
-                            display: true,
-                            position: 'top'
-                        }
-                    }
-                }
-            });
-        }
-    }
+   
 
     // Load initial data when page loads
     document.addEventListener('DOMContentLoaded', () => {
@@ -561,30 +414,61 @@ $profile = $user->getProfile();
     }
 
     // Grade management functions
-    async function showAddGradeModal() {
-        try {
-            // Load students for the selected course
-            const courseId = document.getElementById('course-filter').value;
-            if (!courseId) {
-                alert('Please select a course first');
-                return;
+    async function showAddGradeModal(studentId) {
+        const modal = document.getElementById('addGradeModal');
+        const courseId = document.getElementById('course-filter').value;
+        
+        // Set hidden form values
+        document.getElementById('gradeStudent').value = studentId;
+        document.getElementById('gradeCourse').value = courseId;
+        
+        // Show modal
+        modal.style.display = 'block';
+        
+        // Close modal when clicking the X
+        document.querySelector('.close').onclick = function() {
+            modal.style.display = 'none';
+        }
+        
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            if (event.target == modal) {
+                modal.style.display = 'none';
             }
+        }
+    }
 
-            const response = await fetchAPI(`view_course_students?course_id=${courseId}`);
-            if (response.success) {
-                const studentSelect = document.getElementById('gradeStudent');
-                studentSelect.innerHTML = '<option value="">Select Student</option>' + 
-                    response.data.map(student => 
-                        `<option value="${student.id}">${student.full_name}</option>`
-                    ).join('');
-                
-                showModal('addGradeModal');
+    // Add grade form submission handler
+    document.getElementById('addGradeForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        try {
+            const response = await fetch('api/endpoints.php?endpoint=add_grade', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    student_id: this.gradeStudent.value,
+                    course_id: this.gradeCourse.value,
+                    grade: this.grade.value,
+                    notes: this.notes?.value || ''
+                })
+            });
+            
+            const data = await response.json();
+            if (data.success) {
+                alert('Grade added successfully!');
+                document.getElementById('addGradeModal').style.display = 'none';
+                loadStudentsForGrading(this.gradeCourse.value); // Refresh the list
+                this.reset();
+            } else {
+                alert(data.error || 'Error adding grade');
             }
         } catch (error) {
             console.error('Error:', error);
-            alert('Error loading students');
+            alert('Error adding grade');
         }
-    }
+    });
 
     // Attendance management functions
     async function loadAttendanceList() {
@@ -1077,7 +961,213 @@ $profile = $user->getProfile();
                 }
             });
         }
+
+        // For students - load available courses
+        if (document.getElementById('courses-list')) {
+            loadAvailableCourses();
+        }
+
+        // For teachers - course selection for grading
+        const courseFilter = document.getElementById('course-filter');
+        if (courseFilter) {
+            courseFilter.addEventListener('change', (e) => {
+                loadStudentsForGrading(e.target.value);
+            });
+        }
+
+        // For teachers - attendance management
+        const attendanceCourse = document.getElementById('attendance-course');
+        const attendanceDate = document.getElementById('attendance-date');
+        if (attendanceCourse && attendanceDate) {
+            attendanceCourse.addEventListener('change', () => {
+                loadStudentsForAttendance(attendanceCourse.value, attendanceDate.value);
+            });
+            attendanceDate.addEventListener('change', () => {
+                loadStudentsForAttendance(attendanceCourse.value, attendanceDate.value);
+            });
+        }
     });
+
+    // For Students - Course Enrollment
+    async function loadAvailableCourses() {
+        try {
+            const response = await fetch('api/endpoints.php?endpoint=view_courses');
+            const data = await response.json();
+            
+            const coursesList = document.getElementById('courses-list');
+            if (!coursesList) return;
+
+            coursesList.innerHTML = `
+                <table class="data-grid">
+                    <thead>
+                        <tr>
+                            <th>Course Name</th>
+                            <th>Teacher</th>
+                            <th>Schedule</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${data.data.map(course => `
+                            <tr>
+                                <td>${course.name}</td>
+                                <td>${course.teacher_name}</td>
+                                <td>${course.schedule}</td>
+                                <td>
+                                    ${course.is_enrolled ? 
+                                        '<span class="enrolled-badge">Enrolled</span>' :
+                                        `<button class="btn-enroll" onclick="enrollInCourse(${course.id})">
+                                            Enroll
+                                        </button>`
+                                    }
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+        } catch (error) {
+            console.error('Error loading courses:', error);
+        }
+    }
+
+    async function enrollInCourse(courseId) {
+        try {
+            const response = await fetch('api/endpoints.php?endpoint=enroll_student', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ course_id: courseId })
+            });
+            
+            const data = await response.json();
+            if (data.success) {
+                alert('Successfully enrolled in course!');
+                loadAvailableCourses(); // Refresh the course list
+            } else {
+                alert(data.error || 'Failed to enroll in course');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Failed to enroll in course');
+        }
+    }
+
+    // For Teachers - Grade Management
+    async function loadStudentsForGrading(courseId) {
+        try {
+            const response = await fetch(`api/endpoints.php?endpoint=view_students&course_id=${courseId}`);
+            const data = await response.json();
+            
+            const studentsList = document.getElementById('students-for-grading');
+            if (!studentsList) return;
+
+            studentsList.innerHTML = `
+                <table class="data-grid">
+                    <thead>
+                        <tr>
+                            <th>Student Name</th>
+                            <th>Current Grade</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${data.map(student => `
+                            <tr>
+                                <td>${student.full_name}</td>
+                                <td>${student.current_grade || 'N/A'}</td>
+                                <td>
+                                    <button class="btn-add-grade" onclick="showAddGradeModal(${student.id})">
+                                        Add Grade
+                                    </button>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+        } catch (error) {
+            console.error('Error loading students:', error);
+        }
+    }
+
+    // For Teachers - Attendance Management
+    async function loadStudentsForAttendance(courseId, date) {
+        try {
+            const response = await fetch(
+                `api/endpoints.php?endpoint=view_students&course_id=${courseId}`
+            );
+            const data = await response.json();
+            
+            const attendanceList = document.getElementById('attendance-list');
+            if (!attendanceList) return;
+
+            attendanceList.innerHTML = `
+                <table class="data-grid">
+                    <thead>
+                        <tr>
+                            <th>Student Name</th>
+                            <th>Status</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${data.map(student => `
+                            <tr>
+                                <td>${student.full_name}</td>
+                                <td>
+                                    <select id="attendance-status-${student.id}" class="attendance-select">
+                                        <option value="present">Present</option>
+                                        <option value="absent">Absent</option>
+                                        <option value="late">Late</option>
+                                    </select>
+                                </td>
+                                <td>
+                                    <button class="btn-mark-attendance" 
+                                            onclick="markAttendance(${student.id}, ${courseId})">
+                                        Mark
+                                    </button>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+        } catch (error) {
+            console.error('Error loading students for attendance:', error);
+        }
+    }
+
+    async function markAttendance(studentId, courseId) {
+        const status = document.getElementById(`attendance-status-${studentId}`).value;
+        const date = document.getElementById('attendance-date').value;
+        
+        try {
+            const response = await fetch('api/endpoints.php?endpoint=mark_attendance', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    student_id: studentId,
+                    course_id: courseId,
+                    date: date,
+                    status: status
+                })
+            });
+            
+            const data = await response.json();
+            if (data.success) {
+                alert('Attendance marked successfully!');
+            } else {
+                alert(data.error || 'Failed to mark attendance');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Failed to mark attendance');
+        }
+    }
     </script>
 </body>
 </html>

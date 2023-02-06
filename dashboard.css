@@ -119,27 +119,66 @@
   top: 0;
   width: 100%;
   height: 100%;
-  background-color: rgba(0, 0, 0, 0.5);
+  background-color: rgba(0, 0, 0, 0.4);
 }
 
 .modal-content {
   background-color: #fefefe;
   margin: 15% auto;
   padding: 20px;
-  border-radius: 8px;
+  border: 1px solid #888;
   width: 80%;
   max-width: 500px;
+  border-radius: 8px;
 }
 
 .close {
+  color: #aaa;
   float: right;
   font-size: 28px;
   font-weight: bold;
   cursor: pointer;
 }
 
-.close:hover {
-  color: #666;
+.close:hover,
+.close:focus {
+  color: black;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.filter-section {
+  margin-bottom: 20px;
+  display: flex;
+  gap: 10px;
+}
+
+.form-control {
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.form-group input,
+.form-group textarea {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.btn-primary {
+  background-color: #007bff;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.btn-primary:hover {
+  background-color: #0056b3;
 }
 
 .attendance-row {
@@ -239,4 +278,86 @@
   border: 1px solid #f5c6cb;
   border-radius: 4px;
   margin-top: 10px;
+}
+
+/* Course enrollment styles */
+.enrolled-badge {
+  background-color: #28a745;
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.9em;
+}
+
+.btn-enroll {
+  background-color: #007bff;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.btn-enroll:hover {
+  background-color: #0056b3;
+}
+
+/* Grade management styles */
+.btn-add-grade {
+  background-color: #17a2b8;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.btn-add-grade:hover {
+  background-color: #138496;
+}
+
+/* Attendance management styles */
+.attendance-select {
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid #ddd;
+}
+
+.btn-mark-attendance {
+  background-color: #28a745;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.btn-mark-attendance:hover {
+  background-color: #218838;
+}
+
+/* Common styles */
+.data-grid {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 20px;
+}
+
+.data-grid th,
+.data-grid td {
+  padding: 12px;
+  text-align: left;
+  border: 1px solid #ddd;
+}
+
+.data-grid th {
+  background-color: #f8f9fa;
+}
+
+.data-grid tr:nth-child(even) {
+  background-color: #f8f9fa;
+}
+
+.data-grid tr:hover {
+  background-color: #f2f2f2;
 }
