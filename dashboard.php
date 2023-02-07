@@ -205,8 +205,6 @@ $profile = $user->getProfile();
                 
                 this.classList.add('active');
                 document.getElementById(panel)?.classList.add('active');
-                
-                // Load panel data
                 loadPanelData(panel);
             }
         });
@@ -268,9 +266,10 @@ $profile = $user->getProfile();
         if (document.getElementById('average-grade')) {
             try {
                 const gradesResponse = await fetchAPI('view_grades');
-                if (gradesResponse.success && gradesResponse.data.length > 0) {
-                    const grades = gradesResponse.data;
-                    const average = grades.reduce((acc, curr) => acc + parseFloat(curr.grade), 0) / grades.length;
+                console.log(gradesResponse, 'grades response------');
+                
+                if (gradesResponse.length > 0) {
+                    const average = gradesResponse.reduce((acc, curr) => acc + parseFloat(curr.grade), 0) / gradesResponse.length;
                     document.getElementById('average-grade').textContent = `${average.toFixed(1)}%`;
                 } else {
                     document.getElementById('average-grade').textContent = '0';
