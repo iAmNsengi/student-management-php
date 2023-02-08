@@ -282,9 +282,10 @@ $profile = $user->getProfile();
         
         if (document.getElementById('attendance-rate')) {
             const attendanceResponse = await fetch('api/endpoints.php?endpoint=view_attendance');
-            const attendanceData = await attendanceResponse?.data?.json();
+            const attendanceData = await attendanceResponse.json();
+            
             const presentCount = attendanceData?.filter(a => a?.status === 'present').length;
-            const rate = (presentCount / attendanceData?.length) * 100;
+            const rate = ((presentCount / attendanceData?.length) * 100 ) || 0;
             document.getElementById('attendance-rate').textContent = rate.toFixed(2) + '%';
         }
         
