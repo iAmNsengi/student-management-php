@@ -185,11 +185,9 @@ $profile = $user->getProfile();
               
         </main>
     </div>
- <?php include 'modals/addCourse.html'; ?>
- <?php include 'modals/index.html'; ?>
-
- <?php include 'modals/addGrade.html'; ?>
- <?php include 'modals/markAttendance.html'; ?>
+ <?php include_once __DIR__ . '/modals/addCourse.modal.html'; ?>
+ <?php include_once __DIR__ . '/modals/markAttendance.html'; ?>
+ <?php include_once __DIR__ . '/modals/addGrade.modal.html'; ?>
 
  <script src="./scripts/updateOverviewChart.js"></script>
     <script>
@@ -416,7 +414,20 @@ $profile = $user->getProfile();
 
     // Course management
     async function showAddCourseModal() {
-        showModal('addCourseModal');
+        const modal = document.getElementById('addCourseModal');
+        modal.style.display = 'block';
+        
+        // Close modal when clicking the X
+        document.querySelector('#addCourseModal .close').onclick = function() {
+            modal.style.display = 'none';
+        }
+        
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            if (event.target == modal) {
+                modal.style.display = 'none';
+            }
+        }
     }
 
    
@@ -977,6 +988,50 @@ $profile = $user->getProfile();
         } catch (error) {
             console.error('Error:', error);
             alert('Failed to mark attendance');
+        }
+    }
+
+    async function handleAddCourse(e) {
+        e.preventDefault();
+        
+        const submitButton = this.querySelector('button[type="submit"]');
+        const originalButtonText = submitButton.textContent;
+        submitButton.textContent = 'Creating...';
+        submitButton.disabled = true;
+        
+        try {
+            const schedule = `${document.getElementById('courseSchedule').value} ${document.getElementById('courseTime').value}`;
+            
+            const response = await fetch('api/endpoints.php?endpoint=create_course', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    name: document.getElementById('courseName').value,
+                    schedule: schedule,
+                    description: document.getElementById('courseDescription').value
+                })
+            });
+            
+            const data = await response.json();
+            if (data.success) {
+                alert('Course created successfully!');
+                document.getElementById('addCourseModal').style.display = 'none';
+                this.reset();
+                // Refresh the courses list if it exists
+                if (typeof loadCourses === 'function') {
+                    loadCourses();
+                }
+            } else {
+                alert(data.error || 'Error creating course');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Error creating course. Please try again.');
+        } finally {
+            submitButton.textContent = originalButtonText;
+            submitButton.disabled = false;
         }
     }
     </script>

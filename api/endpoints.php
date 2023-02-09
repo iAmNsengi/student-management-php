@@ -44,6 +44,7 @@ $allowed_endpoints = [
         'view_courses', 
         'view_attendance', 
         'update_profile', 
+        'view_profile',
         'get_profile', 
         'view_today_classes',
         'view_overview',
@@ -58,6 +59,7 @@ $allowed_endpoints = [
         'mark_attendance', 
         'view_students', 
         'update_profile', 
+        'view_profile',
         'get_profile', 
         'view_today_classes',
         'view_overview',
@@ -626,6 +628,40 @@ switch ($endpoint) {
         } catch (Exception $e) {
             http_response_code(400);
             echo json_encode(['error' => $e->getMessage()]);
+        }
+        break;
+
+    case 'view_profile':
+        try {
+            if ($role === 'Student') {
+                $query = "SELECT s.*, u.username, u.role 
+                         FROM Students s 
+                         JOIN Users u ON s.user_id = u.id 
+                         WHERE s.user_id = :user_id";
+            } else {
+                $query = "SELECT t.*, u.username, u.role 
+                         FROM Teachers t 
+                         JOIN Users u ON t.user_id = u.id 
+                         WHERE t.user_id = :user_id";
+            }
+            
+            $stmt = $db->prepare($query);
+            $stmt->bindValue(':user_id', $_SESSION['user_id'], PDO::PARAM_INT);
+            $stmt->execute();
+            
+            $profile = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($profile) {
+                // Remove sensitive information
+                unset($profile['password']);
+                echo json_encode(['success' => true, 'data' => $profile]);
+            } else {
+                http_response_code(404);
+                echo json_encode(['error' => 'Profile not found']);
+            }
+        } catch (PDOException $e) {
+            debug_log("Error in view_profile: " . $e->getMessage());
+            http_response_code(500);
+            echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
         }
         break;
 
