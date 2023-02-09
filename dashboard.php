@@ -299,8 +299,6 @@ $profile = $user->getProfile();
         if (document.getElementById('active-courses')) {
             const coursesResponse = await fetch('api/endpoints.php?endpoint=view_courses');
             const coursesData = await coursesResponse.json();
-            console.log(coursesData);
-            
             document.getElementById('active-courses').textContent = coursesData?.data?.length;
         }
         
@@ -311,11 +309,87 @@ $profile = $user->getProfile();
         }
     }
 
-   
-
     // Load initial data when page loads
     document.addEventListener('DOMContentLoaded', () => {
-        loadPanelData('overview');
+        // Initialize all components
+        loadCourses();
+        loadOverviewData();
+        loadGrades();
+        loadAttendance();
+
+        // Add event listeners for forms
+        const profileForm = document.getElementById('profile-form');
+        if (profileForm) {
+            profileForm.addEventListener('submit', handleProfileUpdate);
+        }
+
+        const addCourseForm = document.getElementById('addCourseForm');
+        if (addCourseForm) {
+            addCourseForm.addEventListener('submit', handleAddCourse);
+        }
+
+        // Initialize dropdowns
+        populateCourseDropdowns();
+
+        // For students - load available courses
+        if (document.getElementById('courses-list')) {
+            loadAvailableCourses();
+        }
+
+        // For teachers - course selection for grading and attendance
+        const courseFilter = document.getElementById('course-filter');
+        if (courseFilter) {
+            courseFilter.addEventListener('change', (e) => {
+                loadStudentsForGrading(e.target.value);
+            });
+        }
+
+        // For teachers - attendance management
+        const attendanceCourse = document.getElementById('attendance-course');
+        const attendanceDate = document.getElementById('attendance-date');
+        if (attendanceCourse && attendanceDate) {
+            attendanceCourse.addEventListener('change', () => {
+                loadStudentsForAttendance(attendanceCourse.value, attendanceDate.value);
+            });
+            attendanceDate.addEventListener('change', () => {
+                loadStudentsForAttendance(attendanceCourse.value, attendanceDate.value);
+            });
+        }
+
+        // Add grade form submission handler
+        const addGradeForm = document.getElementById('addGradeForm');
+        if (addGradeForm) {
+            addGradeForm.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                try {
+                    const response = await fetch('api/endpoints.php?endpoint=add_grade', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            student_id: this.gradeStudent.value,
+                            course_id: this.gradeCourse.value,
+                            grade: this.grade.value,
+                            notes: this.notes?.value || ''
+                        })
+                    });
+                    
+                    const data = await response.json();
+                    if (data.success) {
+                        alert('Grade added successfully!');
+                        document.getElementById('addGradeModal').style.display = 'none';
+                        loadStudentsForGrading(this.gradeCourse.value); // Refresh the list
+                        this.reset();
+                    } else {
+                        alert(data.error || 'Error adding grade');
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    alert('Error adding grade');
+                }
+            });
+        }
     });
 
     // Modal handling functions
@@ -345,51 +419,14 @@ $profile = $user->getProfile();
         showModal('addCourseModal');
     }
 
-    document.getElementById('addCourseForm').addEventListener('submit', async function(e) {
-        e.preventDefault();
-        
-        // Show loading state
-        const submitButton = this.querySelector('button[type="submit"]');
-        const originalButtonText = submitButton.textContent;
-        submitButton.textContent = 'Creating...';
-        submitButton.disabled = true;
-        
-        try {
-            const response = await fetch('api/endpoints.php?endpoint=create_course', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    name: this.name.value,
-                    schedule: this.schedule.value
-                })
-            });
-            
-            const data = await response.json();
-            
-            if (data.success) {
-                hideModal('addCourseModal');
-                loadCourses(); // Refresh the courses list
-                this.reset();
-                alert('Course created successfully!');
-            } else {
-                alert(data.message || 'Error creating course');
-            }
-        } catch (error) {
-            console.error('Error:', error);
-            alert('Error creating course. Please try again.');
-        } finally {
-            // Reset button state
-            submitButton.textContent = originalButtonText;
-            submitButton.disabled = false;
-        }
-    });
+   
 
     // Course dropdown population and management
     async function populateCourseDropdowns() {
         try {
             const response = await fetchAPI('view_courses');
+            console.log(response, 'populate dropdowns----------');
+            
             if (response.success) {
                 // Update all course dropdowns
                 const courseDropdowns = [
@@ -438,142 +475,8 @@ $profile = $user->getProfile();
         }
     }
 
-    // Add grade form submission handler
-    document.getElementById('addGradeForm').addEventListener('submit', async function(e) {
-        e.preventDefault();
-        try {
-            const response = await fetch('api/endpoints.php?endpoint=add_grade', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    student_id: this.gradeStudent.value,
-                    course_id: this.gradeCourse.value,
-                    grade: this.grade.value,
-                    notes: this.notes?.value || ''
-                })
-            });
-            
-            const data = await response.json();
-            if (data.success) {
-                alert('Grade added successfully!');
-                document.getElementById('addGradeModal').style.display = 'none';
-                loadStudentsForGrading(this.gradeCourse.value); // Refresh the list
-                this.reset();
-            } else {
-                alert(data.error || 'Error adding grade');
-            }
-        } catch (error) {
-            console.error('Error:', error);
-            alert('Error adding grade');
-        }
-    });
-
-    // Attendance management functions
-    async function loadAttendanceList() {
-        const courseId = document.getElementById('attendance-course').value;
-        const date = document.getElementById('attendance-date').value;
-
-        if (!courseId || !date) {
-            alert('Please select both course and date');
-            return;
-        }
-
-        try {
-            const response = await fetchAPI(`view_course_attendance?course_id=${courseId}&date=${date}`);
-            if (response.success) {
-                const attendanceList = document.getElementById('manage-attendance-list');
-                if (attendanceList) {
-                    attendanceList.innerHTML = `
-                        <form id="attendance-form">
-                            <table class="data-grid">
-                                <thead>
-                                    <tr>
-                                        <th>Student</th>
-                                        <th>Status</th>
-                                        <th>Notes</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    ${response.data.map(student => `
-                                        <tr>
-                                            <td>${student.full_name}</td>
-                                            <td>
-                                                <select name="status_${student.id}" required>
-                                                    <option value="">Select Status</option>
-                                                    <option value="present" ${student.status === 'present' ? 'selected' : ''}>Present</option>
-                                                    <option value="absent" ${student.status === 'absent' ? 'selected' : ''}>Absent</option>
-                                                    <option value="late" ${student.status === 'late' ? 'selected' : ''}>Late</option>
-                                                </select>
-                                            </td>
-                                            <td>
-                                                <input type="text" name="notes_${student.id}" 
-                                                    value="${student.notes || ''}" 
-                                                    placeholder="Add notes (optional)">
-                                            </td>
-                                        </tr>
-                                    `).join('')}
-                                </tbody>
-                            </table>
-                            <button type="submit" class="btn-primary">Save Attendance</button>
-                        </form>
-                    `;
-
-                    // Add form submission handler
-                    document.getElementById('attendance-form').addEventListener('submit', saveAttendance);
-                }
-            }
-        } catch (error) {
-            console.error('Error:', error);
-            alert('Error loading attendance list');
-        }
-    }
-
-    async function saveAttendance(e) {
-        e.preventDefault();
-        const courseId = document.getElementById('attendance-course').value;
-        const date = document.getElementById('attendance-date').value;
-        const form = e.target;
-        const attendanceData = [];
-
-        // Collect all attendance data
-        form.querySelectorAll('tbody tr').forEach(row => {
-            const studentId = row.querySelector('select').name.split('_')[1];
-            const status = row.querySelector('select').value;
-            const notes = row.querySelector('input[type="text"]').value;
-
-            attendanceData.push({
-                student_id: studentId,
-                status: status,
-                notes: notes
-            });
-        });
-
-        try {
-            const response = await fetchAPI('save_attendance', {
-                method: 'POST',
-                body: JSON.stringify({
-                    course_id: courseId,
-                    date: date,
-                    attendance: attendanceData
-                })
-            });
-
-            if (response.success) {
-                alert('Attendance saved successfully!');
-                loadAttendance(); // Refresh the attendance list
-            } else {
-                alert('Error saving attendance');
-            }
-        } catch (error) {
-            console.error('Error:', error);
-            alert('Error saving attendance');
-        }
-    }
-
     // Profile update
-    document.getElementById('profile-form').addEventListener('submit', async function(e) {
+    async function handleProfileUpdate(e) {
         e.preventDefault();
         
         const submitButton = this.querySelector('button[type="submit"]');
@@ -588,18 +491,22 @@ $profile = $user->getProfile();
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    full_name: document.getElementById('full-name').value
+                    full_name: document.getElementById('full-name').value,
+                    email: document.getElementById('email')?.value,
+                    phone: document.getElementById('phone')?.value
                 })
             });
             
-            if (response.success) {
+            const data = await response.json();
+            if (data.success) {
                 alert('Profile updated successfully!');
+                // Update the displayed name in the sidebar if it exists
                 const nameDisplay = document.querySelector('.profile-section h3');
                 if (nameDisplay) {
                     nameDisplay.textContent = document.getElementById('full-name').value;
                 }
             } else {
-                alert(response.message || 'Error updating profile');
+                alert(data.error || 'Error updating profile');
             }
         } catch (error) {
             console.error('Error:', error);
@@ -608,7 +515,7 @@ $profile = $user->getProfile();
             submitButton.textContent = originalButtonText;
             submitButton.disabled = false;
         }
-    });
+    }
 
     // Load data functions
     async function loadCourses() {
@@ -891,102 +798,6 @@ $profile = $user->getProfile();
             console.error('Error loading profile:', error);
         }
     }
-    </script>
-
-    <script>
-    // Event listeners and initialization
-    document.addEventListener('DOMContentLoaded', () => {
-        // Initialize all components
-        loadCourses();
-        loadOverviewData();
-        loadGrades();
-        loadAttendance();
-
-        // Add event listeners for forms
-        const profileForm = document.getElementById('profile-form');
-        if (profileForm) {
-            profileForm.addEventListener('submit', handleProfileUpdate);
-        }
-
-        const addCourseForm = document.getElementById('addCourseForm');
-        if (addCourseForm) {
-            addCourseForm.addEventListener('submit', handleAddCourse);
-        }
-
-        // Initialize dropdowns
-        populateCourseDropdowns();
-
-        // Add event listeners for course selection
-        const courseFilter = document.getElementById('course-filter');
-        if (courseFilter) {
-            courseFilter.addEventListener('change', () => {
-                loadGrades();
-            });
-        }
-
-        const attendanceCourse = document.getElementById('attendance-course');
-        const attendanceDate = document.getElementById('attendance-date');
-        if (attendanceCourse && attendanceDate) {
-            attendanceCourse.addEventListener('change', loadAttendanceList);
-            attendanceDate.addEventListener('change', loadAttendanceList);
-        }
-
-        // Add grade form submission handler
-        const addGradeForm = document.getElementById('addGradeForm');
-        if (addGradeForm) {
-            addGradeForm.addEventListener('submit', async function(e) {
-                e.preventDefault();
-                try {
-                    const response = await fetchAPI('add_grade', {
-                        method: 'POST',
-                        body: JSON.stringify({
-                            student_id: this.gradeStudent.value,
-                            course_id: this.gradeCourse.value,
-                            grade: this.grade.value,
-                            notes: this.notes?.value || ''
-                        })
-                    });
-
-                    if (response.success) {
-                        alert('Grade added successfully!');
-                        hideModal('addGradeModal');
-                        loadGrades(); // Refresh grades list
-                        this.reset();
-                    } else {
-                        alert(response.message || 'Error adding grade');
-                    }
-                } catch (error) {
-                    console.error('Error:', error);
-                    alert('Error adding grade');
-                }
-            });
-        }
-
-        // For students - load available courses
-        if (document.getElementById('courses-list')) {
-            loadAvailableCourses();
-        }
-
-        // For teachers - course selection for grading
-        const courseFilter = document.getElementById('course-filter');
-        if (courseFilter) {
-            courseFilter.addEventListener('change', (e) => {
-                loadStudentsForGrading(e.target.value);
-            });
-        }
-
-        // For teachers - attendance management
-        const attendanceCourse = document.getElementById('attendance-course');
-        const attendanceDate = document.getElementById('attendance-date');
-        if (attendanceCourse && attendanceDate) {
-            attendanceCourse.addEventListener('change', () => {
-                loadStudentsForAttendance(attendanceCourse.value, attendanceDate.value);
-            });
-            attendanceDate.addEventListener('change', () => {
-                loadStudentsForAttendance(attendanceCourse.value, attendanceDate.value);
-            });
-        }
-    });
 
     // For Students - Course Enrollment
     async function loadAvailableCourses() {
