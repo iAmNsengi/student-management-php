@@ -319,23 +319,98 @@ switch ($endpoint) {
         break;
 
     case 'view_students':
-        if ($role !== 'Teacher') {
-            http_response_code(403);
-            echo json_encode(['error' => 'Only teachers can view student list']);
-            exit;
-        }
-        
         try {
-            $query = "SELECT s.*, u.username 
-                     FROM Students s 
-                     JOIN Users u ON s.user_id = u.id 
-                     ORDER BY s.full_name";
-            $stmt = $db->prepare($query);
-            $stmt->execute();
-            echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
-        } catch (PDOException $e) {
-            http_response_code(500);
-            echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
+            // Debug log the incoming request
+            error_log("view_students endpoint called with GET params: " . print_r($_GET, true));
+            
+            $courseId = isset($_GET['course_id']) ? intval($_GET['course_id']) : null;
+            
+            if ($courseId) {
+                // Course-specific student list (for grade management)
+                // Verify the course exists and belongs to the current teacher
+                $verifyQuery = "SELECT 1 FROM Courses WHERE id = ? AND teacher_id = ?";
+                $verifyStmt = $db->prepare($verifyQuery);
+                $verifyStmt->execute([$courseId, $_SESSION['user_id']]);
+                
+                if (!$verifyStmt->fetch()) {
+                    throw new Exception('Course not found or access denied');
+                }
+
+                // Get students with their latest grades for specific course
+                $query = "SELECT 
+                            s.id,
+                            s.full_name,
+                            g.grade as current_grade,
+                            g.created_at as grade_date
+                        FROM Students s
+                        INNER JOIN Student_Courses sc ON s.id = sc.student_id
+                        LEFT JOIN (
+                            SELECT 
+                                student_id,
+                                grade,
+                                created_at
+                            FROM Grades
+                            WHERE course_id = ?
+                            AND created_at = (
+                                SELECT MAX(created_at)
+                                FROM Grades g2
+                                WHERE g2.student_id = Grades.student_id
+                                AND g2.course_id = Grades.course_id
+                            )
+                        ) g ON s.id = g.student_id
+                        WHERE sc.course_id = ?
+                        ORDER BY s.full_name";
+
+                $stmt = $db->prepare($query);
+                $stmt->execute([$courseId, $courseId]);
+            } else {
+                // General student list (no course filter)
+                $query = "SELECT 
+                            s.id,
+                            s.full_name,
+                            s.created_at
+                        FROM Students s
+                        ORDER BY s.full_name";
+
+                $stmt = $db->prepare($query);
+                $stmt->execute();
+            }
+
+            $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            // Debug log the results
+            error_log("Found " . count($students) . " students" . ($courseId ? " for course " . $courseId : ""));
+
+            // Format the response based on whether it's course-specific or not
+            $formattedStudents = array_map(function($student) use ($courseId) {
+                $formatted = [
+                    'id' => intval($student['id']),
+                    'full_name' => htmlspecialchars($student['full_name'])
+                ];
+                
+                // Add grade info only if this is a course-specific request
+                if ($courseId) {
+                    $formatted['current_grade'] = $student['current_grade'] ? floatval($student['current_grade']) : null;
+                    $formatted['grade_date'] = $student['grade_date'] ? date('Y-m-d', strtotime($student['grade_date'])) : null;
+                }
+                
+                return $formatted;
+            }, $students);
+
+            echo json_encode([
+                'success' => true,
+                'data' => $formattedStudents,
+                'message' => count($formattedStudents) . ' students found' . 
+                            ($courseId ? " for course " . $courseId : "")
+            ]);
+
+        } catch (Exception $e) {
+            error_log("Error in view_students: " . $e->getMessage());
+            http_response_code(400);
+            echo json_encode([
+                'success' => false,
+                'error' => $e->getMessage()
+            ]);
         }
         break;
 

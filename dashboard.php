@@ -154,12 +154,16 @@ $profile = $user->getProfile();
             
             <div class="panel" id="manage-grades">
                 <h2>Manage Grades</h2>
-                <div class="filters">
-                    <select id="course-filter">
-                        <option value="">Select Course</option>
-                    </select>
+                <div class="panel-content">
+                    <div class="filter-section">
+                        <select id="course-filter" class="form-control">
+                            <option value="">Select Course</option>
+                        </select>
+                    </div>
+                    <div id="manage-grades-list">
+                        <!-- Students and grades will be loaded here -->
+                    </div>
                 </div>
-                <div id="manage-grades-list" class="data-grid"></div>
             </div>
             
             <div class="panel" id="manage-attendance">
@@ -197,19 +201,41 @@ $profile = $user->getProfile();
                 e.preventDefault();
                 const panel = this.dataset.panel;
                 
+                if (!panel) {
+                    console.warn('No panel specified in data-panel attribute');
+                    return;
+                }
+                
                 // Update active states
                 document.querySelectorAll('.nav-item').forEach(nav => nav.classList.remove('active'));
                 document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
                 
                 this.classList.add('active');
-                document.getElementById(panel)?.classList.add('active');
-                loadPanelData(panel);
+                const targetPanel = document.getElementById(panel);
+                if (targetPanel) {
+                    targetPanel.classList.add('active');
+                    loadPanelData(panel);
+                } else {
+                    console.warn(`Panel ${panel} not found`);
+                }
             }
         });
     });
 
     // Load panel data based on selected panel
     async function loadPanelData(panel) {
+        if (!panel) {
+            console.log('No panel specified');
+            return;
+        }
+        
+        // Make sure the panel exists before trying to load its data
+        const panelElement = document.getElementById(panel);
+        if (!panelElement) {
+            console.log(`Panel ${panel} not found`);
+            return;
+        }
+        
         try {
             switch(panel) {
                 case 'overview':
@@ -592,65 +618,89 @@ $profile = $user->getProfile();
 
     async function loadGrades() {
         try {
-            const panel = document.querySelector('.panel.active').id;
-            const response = await fetchAPI('view_grades');
+            const activePanel = document.querySelector('.panel.active');
+            if (!activePanel) {
+                console.log('No active panel found');
+                return;
+            }
             
-                if (panel === 'my-grades') {
-                    // Student view
-                    const gradesList = document.querySelector('#grades-list');
-                        gradesList.innerHTML = `
-                            <table class="data-grid">
-                                <thead>
+            const panel = activePanel.id;
+            console.log('Loading grades for panel:', panel); // Debug log
+
+            if (panel === 'my-grades') {
+                // Student view
+                const response = await fetchAPI('view_grades');
+                const gradesList = document.querySelector('#grades-list');
+                if (gradesList) {
+                    gradesList.innerHTML = `
+                        <table class="data-grid">
+                            <thead>
+                                <tr>
+                                    <th>Course</th>
+                                    <th>Grade</th>
+                                    <th>Date</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${response.length ? response.map(grade => `
                                     <tr>
-                                        <th>Course</th>
-                                        <th>Grade</th>
-                                        <th>Date</th>
+                                        <td>${grade.course_name}</td>
+                                        <td>${grade.grade}%</td>
+                                        <td>${grade.date}</td>
                                     </tr>
-                                </thead>
-                                <tbody>
-                                    ${response.length ? response.map(grade => `
-                                        <tr>
-                                            <td>${grade.course_name}</td>
-                                            <td>${grade.grade}%</td>
-                                            <td>${grade.date}</td>
-                                        </tr>
-                                    `).join('') : '<tr><td colspan="3">No grades found</td></tr>'}
-                                </tbody>
-                            </table>
-                        `;
-                } else if (panel === 'manage-grades') {
-                    // Teacher view
-                    const gradesList = document.querySelector('#manage-grades-list');
-                        gradesList.innerHTML = `
-                            <table class="data-grid">
-                                <thead>
-                                    <tr>
-                                        <th>Student</th>
-                                        <th>Course</th>
-                                        <th>Grade</th>
-                                        <th>Date</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    ${response.length ? response.map(grade => `
-                                        <tr>
-                                            <td>${grade.student_name}</td>
-                                            <td>${grade.course_name}</td>
-                                            <td>${grade.grade}%</td>
-                                            <td>${grade.date}</td>
-                                            <td class="action-buttons">
-                                                <button class="btn-edit" onclick="editGrade(${grade.id})">Edit</button>
-                                                <button class="btn-delete" onclick="deleteGrade(${grade.id})">Delete</button>
-                                            </td>
-                                        </tr>
-                                    `).join('') : '<tr><td colspan="5">No grades found</td></tr>'}
-                                </tbody>
-                            </table>
-                        `;
+                                `).join('') : '<tr><td colspan="3">No grades found</td></tr>'}
+                            </tbody>
+                        </table>
+                    `;
                 }
+            } else if (panel === 'manage-grades') {
+                console.log('Initializing teacher grades view'); // Debug log
+                const gradesList = document.querySelector('#manage-grades-list');
+                const courseFilter = document.querySelector('#course-filter');
+                
+                // Initialize course filter if it doesn't exist
+                if (!courseFilter) {
+                    console.error('Course filter not found');
+                    return;
+                }
+
+                // Load courses into dropdown
+                const coursesResponse = await fetchAPI('view_courses');
+                console.log('Courses response:', coursesResponse); // Debug log
+
+                if (coursesResponse.success && coursesResponse.data) {
+                    courseFilter.innerHTML = `
+                        <option value="">Select Course</option>
+                        ${coursesResponse.data.map(course => 
+                            `<option value="${course.id}">${course.name}</option>`
+                        ).join('')}
+                    `;
+
+                    // Add change event listener to course filter
+                    courseFilter.addEventListener('change', async (e) => {
+                        const selectedCourseId = e.target.value;
+                        if (selectedCourseId) {
+                            await loadStudentsForGrading(selectedCourseId);
+                        } else {
+                            if (gradesList) {
+                                gradesList.innerHTML = '<p>Please select a course to view and manage grades.</p>';
+                            }
+                        }
+                    });
+
+                    // Show initial message
+                    if (gradesList) {
+                        gradesList.innerHTML = '<p>Please select a course to view and manage grades.</p>';
+                    }
+                } else {
+                    console.error('Failed to load courses');
+                    if (gradesList) {
+                        gradesList.innerHTML = '<p class="error-message">Error loading courses. Please try again.</p>';
+                    }
+                }
+            }
         } catch (error) {
-            console.error('Error loading grades:', error);
+            console.error('Error in loadGrades:', error);
         }
     }
 
@@ -879,29 +929,57 @@ $profile = $user->getProfile();
     // For Teachers - Grade Management
     async function loadStudentsForGrading(courseId) {
         try {
-            const response = await fetch(`api/endpoints.php?endpoint=view_students&course_id=${courseId}`);
-            const data = await response.json();
+            console.log('Loading students for course:', courseId); // Debug log
             
-            const studentsList = document.getElementById('students-for-grading');
-            if (!studentsList) return;
+            if (!courseId) {
+                console.error('No course ID provided');
+                return;
+            }
 
-            studentsList.innerHTML = `
+            const response = await fetchAPI('view_students', { course_id: courseId });
+            console.log('Students response:', response); // Debug log
+            
+            const gradesList = document.getElementById('manage-grades-list');
+            if (!gradesList) {
+                console.error('Grades list container not found');
+                return;
+            }
+
+            // Show loading state
+            gradesList.innerHTML = '<p>Loading students...</p>';
+
+            if (!response || !response.data) {
+                gradesList.innerHTML = '<p class="error-message">No data received from server</p>';
+                return;
+            }
+
+            const students = response.data;
+            
+            if (students.length === 0) {
+                gradesList.innerHTML = '<p>No students enrolled in this course.</p>';
+                return;
+            }
+
+            gradesList.innerHTML = `
                 <table class="data-grid">
                     <thead>
                         <tr>
                             <th>Student Name</th>
                             <th>Current Grade</th>
+                            <th>Grade Date</th>
                             <th>Action</th>
                         </tr>
                     </thead>
                     <tbody>
-                        ${data.map(student => `
+                        ${students.map(student => `
                             <tr>
                                 <td>${student.full_name}</td>
-                                <td>${student.current_grade || 'N/A'}</td>
+                                <td>${student.current_grade || 'No grade'}</td>
+                                <td>${student.grade_date ? new Date(student.grade_date).toLocaleDateString() : 'N/A'}</td>
                                 <td>
-                                    <button class="btn-add-grade" onclick="showAddGradeModal(${student.id})">
-                                        Add Grade
+                                    <button class="btn-primary" 
+                                            onclick="showAddGradeModal(${student.id}, ${courseId})">
+                                        ${student.current_grade === 'No grade' ? 'Add Grade' : 'Update Grade'}
                                     </button>
                                 </td>
                             </tr>
@@ -911,6 +989,10 @@ $profile = $user->getProfile();
             `;
         } catch (error) {
             console.error('Error loading students:', error);
+            const gradesList = document.getElementById('manage-grades-list');
+            if (gradesList) {
+                gradesList.innerHTML = '<p class="error-message">Error loading students. Please try again.</p>';
+            }
         }
     }
 
