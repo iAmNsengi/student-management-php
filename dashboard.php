@@ -290,8 +290,6 @@ $profile = $user->getProfile();
         if (document.getElementById('average-grade')) {
             try {
                 const gradesResponse = await fetchAPI('view_grades');
-                console.log(gradesResponse, 'grades response------');
-                
                 if (gradesResponse.length > 0) {
                     const average = gradesResponse.reduce((acc, curr) => acc + parseFloat(curr.grade), 0) / gradesResponse.length;
                     document.getElementById('average-grade').textContent = `${average.toFixed(1)}%`;
@@ -317,7 +315,9 @@ $profile = $user->getProfile();
         if (document.getElementById('students-count')) {
             const studentsResponse = await fetch('api/endpoints.php?endpoint=view_students');
             const studentsData = await studentsResponse.json();
-            document.getElementById('students-count').textContent = studentsData.length;
+            console.log(studentsData, '------ students data');
+            
+            document.getElementById('students-count').textContent = studentsData.data.length;
         }
         
         if (document.getElementById('active-courses')) {
