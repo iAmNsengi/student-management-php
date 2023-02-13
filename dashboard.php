@@ -570,10 +570,14 @@ $profile = $user->getProfile();
                                 <h3>${course.name}</h3>
                                 <p><i class="fas fa-clock"></i> Schedule: ${course.schedule}</p>
                                 <p><i class="fas fa-chalkboard-teacher"></i> Teacher: ${course.teacher_name || 'Not Assigned'}</p>
-                                <p class="enrollment-status">
-                                    <i class="fas ${course.is_enrolled ? 'fa-check-circle' : 'fa-circle'}"></i>
-                                    ${course.is_enrolled ? 'Enrolled' : 'Not Enrolled'}
-                                </p>
+                                ${course.is_enrolled 
+                                    ? `<p class="enrollment-status enrolled">
+                                        <i class="fas fa-check-circle"></i> Enrolled
+                                       </p>`
+                                    : `<button class="btn-enroll" onclick="enrollInCourse(${course.id})">
+                                        <i class="fas fa-plus-circle"></i> Enroll
+                                       </button>`
+                                }
                             </div>
                         `).join('') : '<p class="no-courses">No courses found</p>';
                     }
@@ -905,39 +909,59 @@ $profile = $user->getProfile();
 
     async function enrollInCourse(courseId) {
         try {
-            const response = await fetch('api/endpoints.php?endpoint=enroll_student', {
+            const response = await fetchAPI('enroll_course', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ course_id: courseId })
+                body: { course_id: courseId }
             });
-            
-            const data = await response.json();
-            if (data.success) {
-                alert('Successfully enrolled in course!');
-                loadAvailableCourses(); // Refresh the course list
+
+            if (response.success) {
+                // Show success message
+                const messageDiv = document.createElement('div');
+                messageDiv.className = 'alert alert-success';
+                messageDiv.innerHTML = 'Successfully enrolled in course!';
+                document.querySelector('.panel.active').insertBefore(messageDiv, document.querySelector('.panel.active').firstChild);
+                
+                // Remove message after 3 seconds
+                setTimeout(() => messageDiv.remove(), 3000);
+                
+                // Refresh the courses list
+                await loadCourses();
             } else {
-                alert(data.error || 'Failed to enroll in course');
+                // Show error message
+                const messageDiv = document.createElement('div');
+                messageDiv.className = 'alert alert-danger';
+                messageDiv.innerHTML = response.error || 'Failed to enroll in course';
+                document.querySelector('.panel.active').insertBefore(messageDiv, document.querySelector('.panel.active').firstChild);
+                
+                // Remove message after 3 seconds
+                setTimeout(() => messageDiv.remove(), 3000);
             }
         } catch (error) {
             console.error('Error:', error);
-            alert('Failed to enroll in course');
+            // Show error message
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'alert alert-danger';
+            messageDiv.innerHTML = 'Failed to enroll in course. Please try again.';
+            document.querySelector('.panel.active').insertBefore(messageDiv, document.querySelector('.panel.active').firstChild);
+            
+            // Remove message after 3 seconds
+            setTimeout(() => messageDiv.remove(), 3000);
         }
     }
 
     // For Teachers - Grade Management
     async function loadStudentsForGrading(courseId) {
         try {
-            console.log('Loading students for course:', courseId); // Debug log
+            console.log('Loading students for course:', courseId);
             
             if (!courseId) {
                 console.error('No course ID provided');
                 return;
             }
 
-            const response = await fetchAPI('view_students', { course_id: courseId });
-            console.log('Students response:', response); // Debug log
+            // Construct the endpoint with the course_id parameter
+            const response = await fetchAPI(`view_students&course_id=${courseId}`);
+            console.log('Students response:', response);
             
             const gradesList = document.getElementById('manage-grades-list');
             if (!gradesList) {
@@ -1116,6 +1140,33 @@ $profile = $user->getProfile();
             submitButton.disabled = false;
         }
     }
+
+    // Add these styles for the alerts
+    const styles = `
+        .alert {
+            padding: 15px;
+            margin-bottom: 20px;
+            border: 1px solid transparent;
+            border-radius: 4px;
+        }
+
+        .alert-success {
+            color: #155724;
+            background-color: #d4edda;
+            border-color: #c3e6cb;
+        }
+
+        .alert-danger {
+            color: #721c24;
+            background-color: #f8d7da;
+            border-color: #f5c6cb;
+        }
+    `;
+
+    // Add styles to the document
+    const styleSheet = document.createElement("style");
+    styleSheet.innerText = styles;
+    document.head.appendChild(styleSheet);
     </script>
 </body>
 </html>

@@ -48,7 +48,8 @@ $allowed_endpoints = [
         'get_profile', 
         'view_today_classes',
         'view_overview',
-        'view_reports'
+        'view_reports',
+        "enroll_course"
     ],
     'Teacher' => [
         'view_grades', 
@@ -108,23 +109,50 @@ switch ($endpoint) {
         break;
 
     case 'add_grade':
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            http_response_code(405);
-            echo json_encode(['error' => 'Method not allowed']);
-            exit;
+        try {
+            $data = json_decode(file_get_contents('php://input'), true);
+            
+            if (!isset($data['student_id'], $data['course_id'], $data['grade'])) {
+                throw new Exception('Missing required fields');
+            }
+
+            // Check if a grade already exists
+            $checkQuery = "SELECT id FROM Grades 
+                          WHERE student_id = :student_id 
+                          AND course_id = :course_id";
+            
+            $checkStmt = $db->prepare($checkQuery);
+            $checkStmt->bindValue(':student_id', $data['student_id'], PDO::PARAM_INT);
+            $checkStmt->bindValue(':course_id', $data['course_id'], PDO::PARAM_INT);
+            $checkStmt->execute();
+            
+            if ($checkStmt->fetch()) {
+                // Update existing grade
+                $query = "UPDATE Grades 
+                         SET grade = :grade, 
+                             created_at = NOW() 
+                         WHERE student_id = :student_id 
+                         AND course_id = :course_id";
+            } else {
+                // Insert new grade
+                $query = "INSERT INTO Grades (student_id, course_id, grade, created_at) 
+                         VALUES (:student_id, :course_id, :grade, NOW())";
+            }
+
+            $stmt = $db->prepare($query);
+            $stmt->bindValue(':student_id', $data['student_id'], PDO::PARAM_INT);
+            $stmt->bindValue(':course_id', $data['course_id'], PDO::PARAM_INT);
+            $stmt->bindValue(':grade', $data['grade'], PDO::PARAM_STR);
+            
+            if ($stmt->execute()) {
+                echo json_encode(['success' => true]);
+            } else {
+                throw new Exception('Failed to save grade');
+            }
+        } catch (Exception $e) {
+            http_response_code(400);
+            echo json_encode(['error' => $e->getMessage()]);
         }
-        
-        require_once "../modules/grades/Grade.php";
-        $grade = new Grade($db);
-        
-        $data = json_decode(file_get_contents('php://input'), true);
-        $result = $grade->addGrade(
-            $data['student_id'],
-            $data['course_id'],
-            $data['grade']
-        );
-        
-        echo json_encode(['success' => $result]);
         break;
 
     case 'view_attendance':
@@ -320,27 +348,14 @@ switch ($endpoint) {
 
     case 'view_students':
         try {
-            // Debug log the incoming request
-            error_log("view_students endpoint called with GET params: " . print_r($_GET, true));
-            
             $courseId = isset($_GET['course_id']) ? intval($_GET['course_id']) : null;
             
             if ($courseId) {
-                // Course-specific student list (for grade management)
-                // Verify the course exists and belongs to the current teacher
-                $verifyQuery = "SELECT 1 FROM Courses WHERE id = ? AND teacher_id = ?";
-                $verifyStmt = $db->prepare($verifyQuery);
-                $verifyStmt->execute([$courseId, $_SESSION['user_id']]);
-                
-                if (!$verifyStmt->fetch()) {
-                    throw new Exception('Course not found or access denied');
-                }
-
-                // Get students with their latest grades for specific course
+                // Course-specific student list with grades
                 $query = "SELECT 
                             s.id,
                             s.full_name,
-                            g.grade as current_grade,
+                            COALESCE(g.grade, 'No grade') as current_grade,
                             g.created_at as grade_date
                         FROM Students s
                         INNER JOIN Student_Courses sc ON s.id = sc.student_id
@@ -348,54 +363,45 @@ switch ($endpoint) {
                             SELECT 
                                 student_id,
                                 grade,
-                                created_at
+                                created_at,
+                                ROW_NUMBER() OVER (PARTITION BY student_id ORDER BY created_at DESC) as rn
                             FROM Grades
-                            WHERE course_id = ?
-                            AND created_at = (
-                                SELECT MAX(created_at)
-                                FROM Grades g2
-                                WHERE g2.student_id = Grades.student_id
-                                AND g2.course_id = Grades.course_id
-                            )
-                        ) g ON s.id = g.student_id
-                        WHERE sc.course_id = ?
+                            WHERE course_id = :course_id
+                        ) g ON s.id = g.student_id AND g.rn = 1
+                        WHERE sc.course_id = :course_id
                         ORDER BY s.full_name";
 
                 $stmt = $db->prepare($query);
-                $stmt->execute([$courseId, $courseId]);
+                $stmt->bindValue(':course_id', $courseId, PDO::PARAM_INT);
+                $stmt->execute();
+                
+                $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                
+                // Format students with grade information
+                $formattedStudents = array_map(function($student) {
+                    return [
+                        'id' => intval($student['id']),
+                        'full_name' => htmlspecialchars($student['full_name']),
+                        'current_grade' => $student['current_grade'],
+                        'grade_date' => $student['grade_date'] ? date('Y-m-d', strtotime($student['grade_date'])) : null
+                    ];
+                }, $students);
             } else {
                 // General student list (no course filter)
-                $query = "SELECT 
-                            s.id,
-                            s.full_name,
-                            s.created_at
-                        FROM Students s
-                        ORDER BY s.full_name";
-
+                $query = "SELECT id, full_name FROM Students ORDER BY full_name";
                 $stmt = $db->prepare($query);
                 $stmt->execute();
+                
+                $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                
+                // Format students without grade information
+                $formattedStudents = array_map(function($student) {
+                    return [
+                        'id' => intval($student['id']),
+                        'full_name' => htmlspecialchars($student['full_name'])
+                    ];
+                }, $students);
             }
-
-            $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
-            
-            // Debug log the results
-            error_log("Found " . count($students) . " students" . ($courseId ? " for course " . $courseId : ""));
-
-            // Format the response based on whether it's course-specific or not
-            $formattedStudents = array_map(function($student) use ($courseId) {
-                $formatted = [
-                    'id' => intval($student['id']),
-                    'full_name' => htmlspecialchars($student['full_name'])
-                ];
-                
-                // Add grade info only if this is a course-specific request
-                if ($courseId) {
-                    $formatted['current_grade'] = $student['current_grade'] ? floatval($student['current_grade']) : null;
-                    $formatted['grade_date'] = $student['grade_date'] ? date('Y-m-d', strtotime($student['grade_date'])) : null;
-                }
-                
-                return $formatted;
-            }, $students);
 
             echo json_encode([
                 'success' => true,
@@ -656,53 +662,78 @@ switch ($endpoint) {
         }
         break;
 
-    case 'enroll_student':
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            http_response_code(405);
-            echo json_encode(['error' => 'Method not allowed']);
-            exit;
-        }
-
-        $data = json_decode(file_get_contents('php://input'), true);
-        
-        if (!isset($data['course_id'])) {
-            http_response_code(400);
-            echo json_encode(['error' => 'Missing course_id']);
-            exit;
-        }
-
+    case 'enroll_course':
         try {
-            // Get student_id from the user_id
-            $stmt = $db->prepare("SELECT id FROM Students WHERE user_id = ?");
-            $stmt->execute([$_SESSION['user_id']]);
-            $student = $stmt->fetch(PDO::FETCH_ASSOC);
-
-            if (!$student) {
-                throw new Exception('Student not found');
+            // Check if user is logged in
+            if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
+                throw new Exception('User not authenticated');
             }
 
-            $query = "INSERT INTO Student_Courses (student_id, course_id) 
-                     VALUES (:student_id, :course_id)";
+            // Verify user is a student
+            if ($_SESSION['role'] !== 'Student') {
+                throw new Exception('Only students can enroll in courses');
+            }
+
+            // Debug log
+            error_log("Enrollment attempt - User ID: " . $_SESSION['user_id'] . ", Role: " . $_SESSION['role']);
+
+            $data = json_decode(file_get_contents('php://input'), true);
+            
+            if (!isset($data['course_id'])) {
+                throw new Exception('Course ID is required');
+            }
+
+            // Verify the course exists
+            $courseQuery = "SELECT 1 FROM Courses WHERE id = :course_id";
+            $courseStmt = $db->prepare($courseQuery);
+            $courseStmt->bindValue(':course_id', $data['course_id'], PDO::PARAM_INT);
+            $courseStmt->execute();
+            
+            if (!$courseStmt->fetch()) {
+                throw new Exception('Course not found');
+            }
+
+            // Check if already enrolled
+            $checkQuery = "SELECT 1 FROM Student_Courses 
+                          WHERE student_id = :student_id 
+                          AND course_id = :course_id";
+            
+            $checkStmt = $db->prepare($checkQuery);
+            $checkStmt->bindValue(':student_id', $_SESSION['user_id'], PDO::PARAM_INT);
+            $checkStmt->bindValue(':course_id', $data['course_id'], PDO::PARAM_INT);
+            $checkStmt->execute();
+            
+            if ($checkStmt->fetch()) {
+                throw new Exception('Already enrolled in this course');
+            }
+
+            // Enroll in course
+            $query = "INSERT INTO Student_Courses (student_id, course_id, enrolled_date) 
+                     VALUES (:student_id, :course_id, NOW())";
+            
             $stmt = $db->prepare($query);
-            $stmt->bindValue(':student_id', $student['id']);
-            $stmt->bindValue(':course_id', $data['course_id']);
+            $stmt->bindValue(':student_id', $_SESSION['user_id'], PDO::PARAM_INT);
+            $stmt->bindValue(':course_id', $data['course_id'], PDO::PARAM_INT);
             
             if ($stmt->execute()) {
-                echo json_encode(['success' => true, 'message' => 'Successfully enrolled in course']);
+                // Log successful enrollment
+                error_log("Successfully enrolled student {$_SESSION['user_id']} in course {$data['course_id']}");
+                
+                echo json_encode([
+                    'success' => true,
+                    'message' => 'Successfully enrolled in course'
+                ]);
             } else {
+                error_log("Failed to execute enrollment query: " . print_r($stmt->errorInfo(), true));
                 throw new Exception('Failed to enroll in course');
             }
-        } catch (PDOException $e) {
-            if ($e->getCode() == 23000) { // Duplicate entry error
-                http_response_code(409);
-                echo json_encode(['error' => 'Already enrolled in this course']);
-            } else {
-                http_response_code(500);
-                echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
-            }
         } catch (Exception $e) {
-            http_response_code(400);
-            echo json_encode(['error' => $e->getMessage()]);
+            error_log("Enrollment error: " . $e->getMessage());
+            http_response_code(403);
+            echo json_encode([
+                'success' => false,
+                'error' => $e->getMessage()
+            ]);
         }
         break;
 
