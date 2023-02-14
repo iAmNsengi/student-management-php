@@ -664,22 +664,31 @@ switch ($endpoint) {
 
     case 'enroll_course':
         try {
-            // Check if user is logged in
-            if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
-                throw new Exception('User not authenticated');
+            // Debug session information
+            error_log("Session data: " . print_r($_SESSION, true));
+            error_log("POST data: " . file_get_contents('php://input'));
+
+            // Check if user is logged in and is a student
+            if (!isset($_SESSION['user_id'])) {
+                error_log("No user_id in session");
+                throw new Exception('Not authenticated');
             }
 
-            // Verify user is a student
+            if (!isset($_SESSION['role'])) {
+                error_log("No role in session");
+                throw new Exception('Role not set');
+            }
+
             if ($_SESSION['role'] !== 'Student') {
+                error_log("Invalid role: " . $_SESSION['role']);
                 throw new Exception('Only students can enroll in courses');
             }
 
-            // Debug log
-            error_log("Enrollment attempt - User ID: " . $_SESSION['user_id'] . ", Role: " . $_SESSION['role']);
-
             $data = json_decode(file_get_contents('php://input'), true);
+            error_log("Decoded data: " . print_r($data, true));
             
             if (!isset($data['course_id'])) {
+                error_log("No course_id in request");
                 throw new Exception('Course ID is required');
             }
 
@@ -690,6 +699,7 @@ switch ($endpoint) {
             $courseStmt->execute();
             
             if (!$courseStmt->fetch()) {
+                error_log("Course not found: " . $data['course_id']);
                 throw new Exception('Course not found');
             }
 
@@ -704,27 +714,26 @@ switch ($endpoint) {
             $checkStmt->execute();
             
             if ($checkStmt->fetch()) {
+                error_log("Already enrolled - Student: {$_SESSION['user_id']}, Course: {$data['course_id']}");
                 throw new Exception('Already enrolled in this course');
             }
 
-            // Enroll in course
-            $query = "INSERT INTO Student_Courses (student_id, course_id, enrolled_date) 
-                     VALUES (:student_id, :course_id, NOW())";
+            // Enroll in course - Modified query without enrolled_date
+            $query = "INSERT INTO Student_Courses (student_id, course_id) 
+                     VALUES (:student_id, :course_id)";
             
             $stmt = $db->prepare($query);
             $stmt->bindValue(':student_id', $_SESSION['user_id'], PDO::PARAM_INT);
             $stmt->bindValue(':course_id', $data['course_id'], PDO::PARAM_INT);
             
             if ($stmt->execute()) {
-                // Log successful enrollment
-                error_log("Successfully enrolled student {$_SESSION['user_id']} in course {$data['course_id']}");
-                
+                error_log("Enrollment successful - Student: {$_SESSION['user_id']}, Course: {$data['course_id']}");
                 echo json_encode([
                     'success' => true,
                     'message' => 'Successfully enrolled in course'
                 ]);
             } else {
-                error_log("Failed to execute enrollment query: " . print_r($stmt->errorInfo(), true));
+                error_log("Enrollment failed - " . print_r($stmt->errorInfo(), true));
                 throw new Exception('Failed to enroll in course');
             }
         } catch (Exception $e) {

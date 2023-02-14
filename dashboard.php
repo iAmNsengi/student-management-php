@@ -909,10 +909,14 @@ $profile = $user->getProfile();
 
     async function enrollInCourse(courseId) {
         try {
+            console.log('Attempting to enroll in course:', courseId); // Debug log
+            
             const response = await fetchAPI('enroll_course', {
                 method: 'POST',
-                body: { course_id: courseId }
+                body: JSON.stringify({ course_id: courseId })  // Ensure proper JSON formatting
             });
+
+            console.log('Enrollment response:', response); // Debug log
 
             if (response.success) {
                 // Show success message
@@ -937,7 +941,7 @@ $profile = $user->getProfile();
                 setTimeout(() => messageDiv.remove(), 3000);
             }
         } catch (error) {
-            console.error('Error:', error);
+            console.error('Enrollment error:', error);
             // Show error message
             const messageDiv = document.createElement('div');
             messageDiv.className = 'alert alert-danger';
