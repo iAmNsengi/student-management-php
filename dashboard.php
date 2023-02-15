@@ -186,10 +186,8 @@ $profile = $user->getProfile();
                 <div id="report-container"></div>
             </div>
             <?php endif; ?>
-              
-        </main>
-    </div>
-    <div class="content">
+
+             <div class="content">
         <div id="profile" class="panel">
             <h2>My Profile</h2>
             <div id="profile-content">
@@ -198,6 +196,10 @@ $profile = $user->getProfile();
         </div>
         <!-- Other panels -->
     </div>
+              
+        </main>
+    </div>
+   
  <?php include_once __DIR__ . '/modals/addCourse.modal.html'; ?>
  <?php include_once __DIR__ . '/modals/markAttendance.html'; ?>
  <?php include_once __DIR__ . '/modals/addGrade.modal.html'; ?>
@@ -1129,7 +1131,7 @@ $profile = $user->getProfile();
         submitButton.disabled = true;
         
         try {
-            const schedule = `${document.getElementById('courseSchedule').value} ${document.getElementById('courseTime').value}`;
+            const schedule = `${document.getElementById('courseSchedule').value}`;
             
             const response = await fetch('api/endpoints.php?endpoint=create_course', {
                 method: 'POST',
@@ -1139,9 +1141,10 @@ $profile = $user->getProfile();
                 body: JSON.stringify({
                     name: document.getElementById('courseName').value,
                     schedule: schedule,
-                    description: document.getElementById('courseDescription').value
                 })
             });
+            console.log( document.getElementById('courseName').value,document.getElementById('courseSchedule').value);
+            
             
             const data = await response.json();
             if (data.success) {
