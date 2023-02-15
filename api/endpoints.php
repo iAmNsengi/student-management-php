@@ -555,51 +555,88 @@ switch ($endpoint) {
         break;
 
     case 'register':
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            http_response_code(405);
-            echo json_encode(['error' => 'Method not allowed']);
-            exit;
-        }
-
-        $data = json_decode(file_get_contents('php://input'), true);
-
-        if (!isset($data['username']) || !isset($data['password']) || !isset($data['role'])) {
-            http_response_code(400);
-            echo json_encode(['error' => 'Missing required fields']);
-            exit;
-        }
-
         try {
+            // Debug log the incoming data
+            error_log("Register POST data: " . print_r($_POST, true));
+
+            // Validate required fields
+            $required_fields = ['username', 'password', 'role', 'full_name'];
+            $missing_fields = [];
+            
+            foreach ($required_fields as $field) {
+                if (!isset($_POST[$field]) || trim($_POST[$field]) === '') {
+                    $missing_fields[] = $field;
+                }
+            }
+
+            if (!empty($missing_fields)) {
+                error_log("Missing fields: " . implode(', ', $missing_fields));
+                throw new Exception("Missing required fields: " . implode(', ', $missing_fields));
+            }
+
+            // Validate role
+            if (!in_array($_POST['role'], ['Student', 'Teacher'])) {
+                throw new Exception('Invalid role');
+            }
+
             // Check if username already exists
-            $query = "SELECT id FROM Users WHERE username = :username";
-            $stmt = $db->prepare($query);
-            $stmt->bindParam(':username', $data['username']);
-            $stmt->execute();
-
-            if ($stmt->rowCount() > 0) {
-                http_response_code(409);
-                echo json_encode(['error' => 'Username already exists']);
-                exit;
+            $checkQuery = "SELECT id FROM Users WHERE username = :username";
+            $checkStmt = $db->prepare($checkQuery);
+            $checkStmt->bindValue(':username', $_POST['username'], PDO::PARAM_STR);
+            $checkStmt->execute();
+            if ($checkStmt->fetch()) {
+                throw new Exception('Username already exists');
             }
 
-            // Hash the password
-            $hashedPassword = password_hash($data['password'], PASSWORD_BCRYPT);
+            // Begin transaction
+            $db->beginTransaction();
 
-            // Insert new user
-            $query = "INSERT INTO Users (username, password, role) VALUES (:username, :password, :role)";
-            $stmt = $db->prepare($query);
-            $stmt->bindParam(':username', $data['username']);
-            $stmt->bindParam(':password', $hashedPassword);
-            $stmt->bindParam(':role', $data['role']);
+            try {
+                // Insert user
+                $userQuery = "INSERT INTO Users (username, password, role) VALUES (:username, :password, :role)";
+                $userStmt = $db->prepare($userQuery);
+                $hashedPassword = password_hash($_POST['password'], PASSWORD_DEFAULT);
+                $userStmt->bindValue(':username', $_POST['username'], PDO::PARAM_STR);
+                $userStmt->bindValue(':password', $hashedPassword, PDO::PARAM_STR);
+                $userStmt->bindValue(':role', $_POST['role'], PDO::PARAM_STR);
+                $userStmt->execute();
+                
+                $userId = $db->lastInsertId();
 
-            if ($stmt->execute()) {
-                echo json_encode(['success' => true, 'message' => 'Registration successful']);
-            } else {
-                echo json_encode(['success' => false, 'message' => 'Registration failed']);
+                // Insert into role-specific table
+                $roleQuery = "INSERT INTO " . ($_POST['role'] === 'Student' ? 'Students' : 'Teachers') . 
+                            " (user_id, full_name) VALUES (:user_id, :full_name)";
+                $roleStmt = $db->prepare($roleQuery);
+                $roleStmt->bindValue(':user_id', $userId, PDO::PARAM_INT);
+                $roleStmt->bindValue(':full_name', $_POST['full_name'], PDO::PARAM_STR);
+                $roleStmt->execute();
+
+                // Commit transaction
+                $db->commit();
+                
+                echo json_encode([
+                    'success' => true,
+                    'message' => 'Registration successful',
+                    'user' => [
+                        'id' => $userId,
+                        'role' => $_POST['role'],
+                        'username' => $_POST['username'],
+                        'full_name' => $_POST['full_name']
+                    ]
+                ]);
+
+            } catch (Exception $e) {
+                $db->rollBack();
+                throw $e;
             }
-        } catch (PDOException $e) {
-            http_response_code(500);
-            echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
+
+        } catch (Exception $e) {
+            error_log("Registration error: " . $e->getMessage());
+            http_response_code(400);
+            echo json_encode([
+                'success' => false,
+                'error' => $e->getMessage()
+            ]);
         }
         break;
 
@@ -668,39 +705,29 @@ switch ($endpoint) {
             error_log("Session data: " . print_r($_SESSION, true));
             error_log("POST data: " . file_get_contents('php://input'));
 
-            // Check if user is logged in and is a student
-            if (!isset($_SESSION['user_id'])) {
-                error_log("No user_id in session");
-                throw new Exception('Not authenticated');
-            }
-
-            if (!isset($_SESSION['role'])) {
-                error_log("No role in session");
-                throw new Exception('Role not set');
+            if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
+                throw new Exception('User not authenticated');
             }
 
             if ($_SESSION['role'] !== 'Student') {
-                error_log("Invalid role: " . $_SESSION['role']);
                 throw new Exception('Only students can enroll in courses');
             }
 
             $data = json_decode(file_get_contents('php://input'), true);
-            error_log("Decoded data: " . print_r($data, true));
             
             if (!isset($data['course_id'])) {
-                error_log("No course_id in request");
                 throw new Exception('Course ID is required');
             }
 
-            // Verify the course exists
-            $courseQuery = "SELECT 1 FROM Courses WHERE id = :course_id";
-            $courseStmt = $db->prepare($courseQuery);
-            $courseStmt->bindValue(':course_id', $data['course_id'], PDO::PARAM_INT);
-            $courseStmt->execute();
+            // First, get the student's ID from the Students table
+            $studentQuery = "SELECT id FROM Students WHERE user_id = :user_id";
+            $studentStmt = $db->prepare($studentQuery);
+            $studentStmt->bindValue(':user_id', $_SESSION['user_id'], PDO::PARAM_INT);
+            $studentStmt->execute();
             
-            if (!$courseStmt->fetch()) {
-                error_log("Course not found: " . $data['course_id']);
-                throw new Exception('Course not found');
+            $student = $studentStmt->fetch(PDO::FETCH_ASSOC);
+            if (!$student) {
+                throw new Exception('Student record not found');
             }
 
             // Check if already enrolled
@@ -709,31 +736,28 @@ switch ($endpoint) {
                           AND course_id = :course_id";
             
             $checkStmt = $db->prepare($checkQuery);
-            $checkStmt->bindValue(':student_id', $_SESSION['user_id'], PDO::PARAM_INT);
+            $checkStmt->bindValue(':student_id', $student['id'], PDO::PARAM_INT);
             $checkStmt->bindValue(':course_id', $data['course_id'], PDO::PARAM_INT);
             $checkStmt->execute();
             
             if ($checkStmt->fetch()) {
-                error_log("Already enrolled - Student: {$_SESSION['user_id']}, Course: {$data['course_id']}");
                 throw new Exception('Already enrolled in this course');
             }
 
-            // Enroll in course - Modified query without enrolled_date
+            // Enroll in course using the student's ID from Students table
             $query = "INSERT INTO Student_Courses (student_id, course_id) 
                      VALUES (:student_id, :course_id)";
             
             $stmt = $db->prepare($query);
-            $stmt->bindValue(':student_id', $_SESSION['user_id'], PDO::PARAM_INT);
+            $stmt->bindValue(':student_id', $student['id'], PDO::PARAM_INT);
             $stmt->bindValue(':course_id', $data['course_id'], PDO::PARAM_INT);
             
             if ($stmt->execute()) {
-                error_log("Enrollment successful - Student: {$_SESSION['user_id']}, Course: {$data['course_id']}");
                 echo json_encode([
                     'success' => true,
                     'message' => 'Successfully enrolled in course'
                 ]);
             } else {
-                error_log("Enrollment failed - " . print_r($stmt->errorInfo(), true));
                 throw new Exception('Failed to enroll in course');
             }
         } catch (Exception $e) {

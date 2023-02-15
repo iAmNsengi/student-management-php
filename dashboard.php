@@ -189,6 +189,15 @@ $profile = $user->getProfile();
               
         </main>
     </div>
+    <div class="content">
+        <div id="profile" class="panel">
+            <h2>My Profile</h2>
+            <div id="profile-content">
+                <div class="loading">Loading profile...</div>
+            </div>
+        </div>
+        <!-- Other panels -->
+    </div>
  <?php include_once __DIR__ . '/modals/addCourse.modal.html'; ?>
  <?php include_once __DIR__ . '/modals/markAttendance.html'; ?>
  <?php include_once __DIR__ . '/modals/addGrade.modal.html'; ?>
@@ -853,14 +862,24 @@ $profile = $user->getProfile();
     async function loadProfile() {
         try {
             const response = await fetchAPI('view_profile');
-            if (response.success) {
-                const fullNameInput = document.getElementById('full-name');
-                if (fullNameInput && response.data.full_name) {
-                    fullNameInput.value = response.data.full_name;
-                }
+            const profileContent = document.getElementById('profile-content');
+            
+            if (response.success && response.data) {
+                profileContent.innerHTML = `
+                    <div class="profile-info">
+                        <p><strong>Username:</strong> ${response.data.username}</p>
+                        <p><strong>Full Name:</strong> ${response.data.full_name}</p>
+                        <p><strong>Role:</strong> ${response.data.role}</p>
+                    </div>
+                    <button onclick="showEditProfileForm()">Edit Profile</button>
+                `;
+            } else {
+                profileContent.innerHTML = '<p class="error">Failed to load profile</p>';
             }
         } catch (error) {
             console.error('Error loading profile:', error);
+            document.getElementById('profile-content').innerHTML = 
+                '<p class="error">Error loading profile. Please try again.</p>';
         }
     }
 
@@ -1171,6 +1190,46 @@ $profile = $user->getProfile();
     const styleSheet = document.createElement("style");
     styleSheet.innerText = styles;
     document.head.appendChild(styleSheet);
+
+    // Add function to edit profile
+    function showEditProfileForm() {
+        const profileContent = document.getElementById('profile-content');
+        const currentName = profileContent.querySelector('.profile-info p:nth-child(2)').textContent.split(': ')[1];
+        
+        profileContent.innerHTML = `
+            <form id="edit-profile-form" onsubmit="updateProfile(event)">
+                <div class="form-group">
+                    <label for="edit-full-name">Full Name</label>
+                    <input type="text" id="edit-full-name" name="full_name" value="${currentName}" required>
+                </div>
+                <button type="submit">Save Changes</button>
+                <button type="button" onclick="loadProfile()">Cancel</button>
+            </form>
+        `;
+    }
+
+    // Function to update profile
+    async function updateProfile(event) {
+        event.preventDefault();
+        const formData = new FormData(event.target);
+        
+        try {
+            const response = await fetchAPI('update_profile', {
+                method: 'POST',
+                body: { full_name: formData.get('full_name') }
+            });
+            
+            if (response.success) {
+                alert('Profile updated successfully');
+                loadProfile();
+            } else {
+                throw new Error(response.error || 'Failed to update profile');
+            }
+        } catch (error) {
+            console.error('Error updating profile:', error);
+            alert(error.message || 'Failed to update profile. Please try again.');
+        }
+    }
     </script>
 </body>
 </html>

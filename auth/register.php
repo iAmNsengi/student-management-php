@@ -10,41 +10,6 @@ if (isset($_SESSION['user_id'])) {
 }
 
 $error_message = ""; // Variable to hold error messages
-
-if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    $database = new Database();
-    $db = $database->getConnection();
-    
-    $user = new User($db);
-    $user->username = $_POST['username'];
-    $user->password = $_POST['password'];
-    $user->role = $_POST['role'];
-    
-    // Check if the username already exists
-    if ($user->usernameExists()) {
-        $error_message = "Username already exists. Please choose another.";
-    } else {
-        if($user->create()) {
-            $user_id = $db->lastInsertId();
-            
-            // Create corresponding entry in Students or Teachers table
-            if($user->role == 'Student') {
-                $query = "INSERT INTO Students (user_id, full_name, class) VALUES (?, ?, ?)";
-                $stmt = $db->prepare($query);
-                $stmt->execute([$user_id, $_POST['full_name'], $_POST['class']]);
-            } elseif($user->role == 'Teacher') {
-                $query = "INSERT INTO Teachers (user_id, full_name, department) VALUES (?, ?, ?)";
-                $stmt = $db->prepare($query);
-                $stmt->execute([$user_id, $_POST['full_name'], $_POST['department']]);
-            }
-            
-            header("Location: login.php");
-            exit();
-        } else {
-            $error_message = "An error occurred while registering. Please try again.";
-        }
-    }
-}
 ?>
 
 <!DOCTYPE html>
@@ -58,25 +23,24 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         async function handleRegister(event) {
             event.preventDefault();
 
-            const username = document.getElementById('username').value;
-            const password = document.getElementById('password').value;
-            const role = document.getElementById('role').value;
+            const formData = new FormData();
+            formData.append('username', document.getElementById('username').value);
+            formData.append('password', document.getElementById('password').value);
+            formData.append('role', document.getElementById('role').value);
+            formData.append('full_name', document.getElementById('full_name').value);
 
             try {
                 const response = await fetch('../api/endpoints.php?endpoint=register', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ username, password, role }),
-                    credentials: 'include' // Important for session cookies
+                    body: formData,
+                    credentials: 'include'
                 });
 
                 const data = await response.json();
 
                 if (data.success) {
                     alert('Registration successful!');
-                    window.location.href = 'login.php'; // Redirect to login
+                    window.location.href = 'login.php';
                 } else {
                     alert(data.error || 'Registration failed');
                 }
@@ -88,16 +52,108 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     </script>
 </head>
 <body>
-    <form id="register-form" onsubmit="handleRegister(event)">
-        <input type="text" id="username" placeholder="Username" required>
-        <input type="password" id="password" placeholder="Password" required>
-        <select id="role" required>
-            <option value="Student">Student</option>
-            <option value="Teacher">Teacher</option>
-        </select>
-        <button type="submit">Register</button>
-            <p>Already have an account? <a href="login.php">Login here</a></p>
+    <div class="auth-container">
+        <form id="register-form" onsubmit="handleRegister(event)" class="auth-form">
+            <h2>Register</h2>
+            <?php if ($error_message): ?>
+                <div class="error-message"><?php echo htmlspecialchars($error_message); ?></div>
+            <?php endif; ?>
+            
+            <div class="form-group">
+                <label for="full_name">Full Name</label>
+                <input type="text" id="full_name" name="full_name" required>
+            </div>
 
-    </form>
+            <div class="form-group">
+                <label for="username">Username</label>
+                <input type="text" id="username" name="username" required>
+            </div>
+
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" required>
+            </div>
+
+            <div class="form-group">
+                <label for="role">Role</label>
+                <select id="role" name="role" required>
+                    <option value="">Select Role</option>
+                    <option value="Student">Student</option>
+                    <option value="Teacher">Teacher</option>
+                </select>
+            </div>
+
+            <button type="submit" class="btn-primary">Register</button>
+            <p class="auth-link">Already have an account? <a href="login.php">Login here</a></p>
+        </form>
+    </div>
+
+    <style>
+        .auth-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #f5f5f5;
+        }
+
+        .auth-form {
+            background: white;
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 400px;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 1rem;
+        }
+
+        .btn-primary {
+            width: 100%;
+            padding: 0.75rem;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 1rem;
+            cursor: pointer;
+            margin-top: 1rem;
+        }
+
+        .btn-primary:hover {
+            background-color: #0056b3;
+        }
+
+        .auth-link {
+            text-align: center;
+            margin-top: 1rem;
+        }
+
+        .error-message {
+            color: #dc3545;
+            padding: 0.5rem;
+            margin-bottom: 1rem;
+            border: 1px solid #dc3545;
+            border-radius: 4px;
+            background-color: #f8d7da;
+        }
+    </style>
 </body>
 </html>
