@@ -930,17 +930,12 @@ $profile = $user->getProfile();
 
     async function enrollInCourse(courseId) {
         try {
-            console.log('Attempting to enroll in course:', courseId); // Debug log
-            
             const response = await fetchAPI('enroll_course', {
                 method: 'POST',
                 body: JSON.stringify({ course_id: courseId })  // Ensure proper JSON formatting
             });
 
-            console.log('Enrollment response:', response); // Debug log
-
             if (response.success) {
-                // Show success message
                 const messageDiv = document.createElement('div');
                 messageDiv.className = 'alert alert-success';
                 messageDiv.innerHTML = 'Successfully enrolled in course!';
@@ -1131,8 +1126,6 @@ $profile = $user->getProfile();
         submitButton.disabled = true;
         
         try {
-            const schedule = `${document.getElementById('courseSchedule').value}`;
-            
             const response = await fetch('api/endpoints.php?endpoint=create_course', {
                 method: 'POST',
                 headers: {
@@ -1140,24 +1133,18 @@ $profile = $user->getProfile();
                 },
                 body: JSON.stringify({
                     name: document.getElementById('courseName').value,
-                    schedule: schedule,
+                    schedule: document.getElementById('courseSchedule').value,
                 })
             });
-            console.log( document.getElementById('courseName').value,document.getElementById('courseSchedule').value);
-            
-            
             const data = await response.json();
             if (data.success) {
                 alert('Course created successfully!');
                 document.getElementById('addCourseModal').style.display = 'none';
                 this.reset();
-                // Refresh the courses list if it exists
-                if (typeof loadCourses === 'function') {
-                    loadCourses();
-                }
-            } else {
-                alert(data.error || 'Error creating course');
-            }
+                if (typeof loadCourses === 'function') loadCourses();
+
+            } else alert(data.error || 'Error creating course');
+            
         } catch (error) {
             console.error('Error:', error);
             alert('Error creating course. Please try again.');
@@ -1166,33 +1153,6 @@ $profile = $user->getProfile();
             submitButton.disabled = false;
         }
     }
-
-    // Add these styles for the alerts
-    const styles = `
-        .alert {
-            padding: 15px;
-            margin-bottom: 20px;
-            border: 1px solid transparent;
-            border-radius: 4px;
-        }
-
-        .alert-success {
-            color: #155724;
-            background-color: #d4edda;
-            border-color: #c3e6cb;
-        }
-
-        .alert-danger {
-            color: #721c24;
-            background-color: #f8d7da;
-            border-color: #f5c6cb;
-        }
-    `;
-
-    // Add styles to the document
-    const styleSheet = document.createElement("style");
-    styleSheet.innerText = styles;
-    document.head.appendChild(styleSheet);
 
     // Add function to edit profile
     function showEditProfileForm() {
