@@ -221,26 +221,17 @@ $profile = $user->getProfile();
     <div class="modal-content">
         <span class="close" onclick="document.getElementById('editCourseModal').style.display='none'">&times;</span>
         <h2>Edit Course</h2>
-        <form id="editCourseForm" onsubmit="updateCourse(event)">
-            <input type="hidden" id="edit-course-id" name="course_id">
+        <form onsubmit="updateCourse(event)">
+            <input type="hidden" id="edit-course-id">
             <div class="form-group">
                 <label for="edit-course-name">Course Name:</label>
-                <input type="text" id="edit-course-name" name="name" required>
+                <input type="text" id="edit-course-name" required>
             </div>
             <div class="form-group">
                 <label for="edit-course-schedule">Schedule:</label>
-                <input type="text" id="edit-course-schedule" name="schedule">
+                <input type="text" id="edit-course-schedule">
             </div>
-            <div id="enrolled-students-list">
-                <!-- Enrolled students will be listed here -->
-            </div>
-            <div class="form-actions">
-                <button type="submit" class="btn-primary">Update Course</button>
-                <button type="button" class="btn-secondary" 
-                        onclick="document.getElementById('editCourseModal').style.display='none'">
-                    Cancel
-                </button>
-            </div>
+            <button type="submit" class="btn-primary">Update Course</button>
         </form>
     </div>
 </div>
@@ -1112,20 +1103,27 @@ $profile = $user->getProfile();
     // For Teachers - Attendance Management
     async function loadStudentsForAttendance() {
         try {
-            const date = document.getElementById('attendance-date')?.value || new Date().toISOString().split('T')[0];
+            const date = document.getElementById('attendance-date')?.value;
             const courseId = document.getElementById('attendance-course')?.value;
             
-            if (!courseId) {
+            if (!date || !courseId) {
                 document.getElementById('manage-attendance-list').innerHTML = 
-                    '<p>Please select a course</p>';
+                    '<p>Please select both date and course</p>';
                 return;
             }
 
+            console.log('Loading attendance for:', { date, courseId }); // Debug log
+
             const response = await fetchAPI(`view_course_students&course_id=${courseId}`);
+            console.log('Students response:', response); // Debug log
+
             const attendanceResponse = await fetchAPI(`view_attendance&date=${date}&course_id=${courseId}`);
-            
+            console.log('Attendance response:', attendanceResponse); // Debug log
+
             const studentsList = document.querySelector('#manage-attendance-list');
-            if (studentsList && response.success) {
+            if (!studentsList) return;
+
+            if (response.success && response.data) {
                 // Create a map of existing attendance records
                 const attendanceMap = new Map();
                 if (attendanceResponse.success && attendanceResponse.data) {
@@ -1144,33 +1142,32 @@ $profile = $user->getProfile();
                             </tr>
                         </thead>
                         <tbody>
-                            ${response.data.length ? 
-                                response.data.map(student => {
-                                    const currentStatus = attendanceMap.get(student.id) || '';
-                                    return `
-                                        <tr>
-                                            <td>${student.full_name}</td>
-                                            <td>
-                                                <select id="status-${student.id}" class="attendance-status">
-                                                    <option value="">Select Status</option>
-                                                    <option value="present" ${currentStatus === 'present' ? 'selected' : ''}>Present</option>
-                                                    <option value="absent" ${currentStatus === 'absent' ? 'selected' : ''}>Absent</option>
-                                                    <option value="late" ${currentStatus === 'late' ? 'selected' : ''}>Late</option>
-                                                </select>
-                                            </td>
-                                            <td>
-                                                <button class="btn-primary" onclick="markAttendance(${student.id})">
-                                                    ${currentStatus ? 'Update' : 'Mark'}
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    `;
-                                }).join('') 
-                                : '<tr><td colspan="3">No students enrolled in this course</td></tr>'
-                            }
+                            ${response.data.map(student => {
+                                const currentStatus = attendanceMap.get(student.id) || '';
+                                return `
+                                    <tr>
+                                        <td>${student.full_name}</td>
+                                        <td>
+                                            <select id="status-${student.id}" class="attendance-status">
+                                                <option value="">Select Status</option>
+                                                <option value="present" ${currentStatus === 'present' ? 'selected' : ''}>Present</option>
+                                                <option value="absent" ${currentStatus === 'absent' ? 'selected' : ''}>Absent</option>
+                                                <option value="late" ${currentStatus === 'late' ? 'selected' : ''}>Late</option>
+                                            </select>
+                                        </td>
+                                        <td>
+                                            <button class="btn-primary" onclick="markAttendance(${student.id})">
+                                                ${currentStatus ? 'Update' : 'Mark'} Attendance
+                                            </button>
+                                        </td>
+                                    </tr>
+                                `;
+                            }).join('')}
                         </tbody>
                     </table>
                 `;
+            } else {
+                studentsList.innerHTML = '<p>No students found for this course</p>';
             }
         } catch (error) {
             console.error('Error loading students:', error);
@@ -1185,21 +1182,27 @@ $profile = $user->getProfile();
         try {
             const date = document.getElementById('attendance-date')?.value;
             const courseId = document.getElementById('attendance-course')?.value;
-            const status = document.getElementById(`status-${studentId}`).value;
+            const status = document.getElementById(`status-${studentId}`)?.value;
+
+            console.log('Marking attendance with:', { studentId, courseId, date, status }); // Debug log
 
             if (!date || !courseId || !status) {
                 alert('Please select date, course, and status');
                 return;
             }
 
+            const attendanceData = {
+                student_id: parseInt(studentId),
+                course_id: parseInt(courseId),
+                date: date,
+                status: status
+            };
+
+            console.log('Sending attendance data:', attendanceData); // Debug log
+
             const response = await fetchAPI('mark_attendance', {
                 method: 'POST',
-                body: JSON.stringify({
-                    student_id: studentId,
-                    course_id: courseId,
-                    date: date,
-                    status: status
-                })
+                body: JSON.stringify(attendanceData)
             });
 
             if (response.success) {
@@ -1209,7 +1212,7 @@ $profile = $user->getProfile();
                 throw new Error(response.error || 'Failed to mark attendance');
             }
         } catch (error) {
-            console.error('Error:', error);
+            console.error('Error marking attendance:', error);
             alert('Failed to mark attendance: ' + error.message);
         }
     }
@@ -1314,52 +1317,24 @@ $profile = $user->getProfile();
     // Add these functions for course management
     async function editCourse(courseId) {
         try {
+            console.log('Editing course:', courseId);
             const response = await fetchAPI(`view_course_details&course_id=${courseId}`);
+            
             if (response.success) {
                 const course = response.data;
+                console.log('Course details:', course);
                 
                 // Populate the edit modal
                 document.getElementById('edit-course-id').value = course.id;
                 document.getElementById('edit-course-name').value = course.name;
                 document.getElementById('edit-course-schedule').value = course.schedule || '';
                 
-                // Show enrolled students
-                const enrolledStudents = document.getElementById('enrolled-students-list');
-                if (enrolledStudents) {
-                    enrolledStudents.innerHTML = `
-                        <h3>Enrolled Students</h3>
-                        <table class="data-grid">
-                            <thead>
-                                <tr>
-                                    <th>Student Name</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${course.enrolled_students?.length ? 
-                                    course.enrolled_students.map(student => `
-                                        <tr>
-                                            <td>${student.full_name}</td>
-                                            <td>
-                                                <button class="btn-danger" onclick="removeStudent(${course.id}, ${student.id})">
-                                                    Remove
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    `).join('') 
-                                    : '<tr><td colspan="2">No students enrolled</td></tr>'
-                                }
-                            </tbody>
-                        </table>
-                    `;
-                }
-                
-                // Show the edit modal
+                // Show the modal
                 document.getElementById('editCourseModal').style.display = 'block';
             }
         } catch (error) {
             console.error('Error loading course details:', error);
-            alert('Error loading course details');
+            alert('Error loading course details: ' + error.message);
         }
     }
 
@@ -1367,24 +1342,27 @@ $profile = $user->getProfile();
         event.preventDefault();
         
         try {
-            const formData = new FormData(event.target);
+            const courseId = document.getElementById('edit-course-id').value;
+            const courseName = document.getElementById('edit-course-name').value;
+            const courseSchedule = document.getElementById('edit-course-schedule').value;
+
             const courseData = {
-                id: formData.get('course_id'),
-                name: formData.get('name'),
-                schedule: formData.get('schedule')
+                id: courseId,
+                name: courseName,
+                schedule: courseSchedule
             };
 
-            console.log('Sending course data:', courseData); // Debug log
+            console.log('Sending course data:', courseData);
 
             const response = await fetchAPI('update_course', {
                 method: 'POST',
-                body: JSON.stringify(courseData)
+                body: courseData
             });
 
             if (response.success) {
                 alert('Course updated successfully!');
                 document.getElementById('editCourseModal').style.display = 'none';
-                loadCourses(); // Refresh the courses list
+                await loadCourses(); // Refresh the courses list
             } else {
                 throw new Error(response.error || 'Failed to update course');
             }

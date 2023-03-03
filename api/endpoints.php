@@ -199,14 +199,24 @@ switch ($endpoint) {
                 throw new Exception('Not authenticated');
             }
 
-            $data = json_decode(file_get_contents('php://input'), true);
-            
+            // Log the raw input for debugging
+            $rawInput = file_get_contents('php://input');
+            error_log("Raw attendance input: " . $rawInput);
+
+            $data = json_decode($rawInput, true);
+            error_log("Decoded attendance data: " . print_r($data, true));
+
             // Validate required fields
-            if (!isset($data['student_id']) || !isset($data['date']) || !isset($data['status'])) {
-                throw new Exception('Missing required fields: student_id, date, and status are required');
+            if (!isset($data['student_id']) || !isset($data['course_id']) || 
+                !isset($data['date']) || !isset($data['status'])) {
+                throw new Exception('Missing required fields: ' . 
+                                  'student_id: ' . (isset($data['student_id']) ? 'yes' : 'no') . ', ' .
+                                  'course_id: ' . (isset($data['course_id']) ? 'yes' : 'no') . ', ' .
+                                  'date: ' . (isset($data['date']) ? 'yes' : 'no') . ', ' .
+                                  'status: ' . (isset($data['status']) ? 'yes' : 'no'));
             }
 
-            // Validate status
+            // Validate status values
             if (!in_array($data['status'], ['present', 'absent', 'late'])) {
                 throw new Exception('Invalid status. Must be present, absent, or late');
             }
@@ -215,7 +225,8 @@ switch ($endpoint) {
             $attendance = new Attendance($db);
             
             $result = $attendance->markAttendance(
-                $data['student_id'],
+                intval($data['student_id']),
+                intval($data['course_id']),
                 $data['date'],
                 $data['status']
             );
