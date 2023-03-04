@@ -182,7 +182,6 @@ $profile = $user->getProfile();
                             <!-- Courses will be loaded here -->
                         </select>
                     </div>
-                    <button class="btn-primary" onclick="markAllAttendance()">Mark All Present</button>
                 </div>
                 <div id="manage-attendance-list">
                     <!-- Students list will be loaded here -->
