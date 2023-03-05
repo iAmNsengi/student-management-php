@@ -256,28 +256,34 @@ switch ($endpoint) {
                 throw new Exception('Not authenticated');
             }
 
-            // Use the existing Course class
             require_once "../modules/courses/Course.php";
             $course = new Course($db);
 
             if ($_SESSION['role'] === 'Teacher') {
                 $courses = $course->getTeacherCourses($_SESSION['user_id']);
             } else {
-                $courses = $course->getAllCourses(); // For students, show all available courses
+                $courses = $course->getCourses();
             }
 
+            // Make sure we're not outputting anything before the JSON
+            if (ob_get_length()) ob_clean();
+            
+            header('Content-Type: application/json');
             echo json_encode([
                 'success' => true,
                 'data' => $courses
             ]);
+            exit;
 
         } catch (Exception $e) {
-            error_log("Error in view_courses: " . $e->getMessage());
+            if (ob_get_length()) ob_clean();
+            header('Content-Type: application/json');
             http_response_code(400);
             echo json_encode([
                 'success' => false,
                 'error' => $e->getMessage()
             ]);
+            exit;
         }
         break;
 

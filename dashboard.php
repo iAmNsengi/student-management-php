@@ -325,8 +325,10 @@ $profile = $user->getProfile();
     async function updateDashboardCards(data) {
         if (document.getElementById('courses-count')) {
             const coursesResponse = await fetch('api/endpoints.php?endpoint=view_courses');
-            const coursesData = await coursesResponse.data
-            document.getElementById('courses-count').textContent = coursesData?.length;
+            const coursesData = await coursesResponse.json()
+            console.log(coursesData, 'courses response ------');
+            
+            document.getElementById('courses-count').textContent = coursesData?.data?.length;
         }
         
         if (document.getElementById('average-grade')) {
@@ -348,8 +350,8 @@ $profile = $user->getProfile();
             const attendanceResponse = await fetch('api/endpoints.php?endpoint=view_attendance');
             const attendanceData = await attendanceResponse.json();
             
-            const presentCount = attendanceData?.filter(a => a?.status === 'present').length;
-            const rate = ((presentCount / attendanceData?.length) * 100 ) || 0;
+            const presentCount = attendanceData?.data.filter(a => a?.status === 'present').length;
+            const rate = ((presentCount / attendanceData.data?.length) * 100 ) || 0;
             document.getElementById('attendance-rate').textContent = rate.toFixed(2) + '%';
         }
         
@@ -357,14 +359,14 @@ $profile = $user->getProfile();
         if (document.getElementById('students-count')) {
             const studentsResponse = await fetch('api/endpoints.php?endpoint=view_students');
             const studentsData = await studentsResponse.json();
-            console.log(studentsData, '------ students data');
-            
             document.getElementById('students-count').textContent = studentsData.data.length;
         }
         
         if (document.getElementById('active-courses')) {
             const coursesResponse = await fetch('api/endpoints.php?endpoint=view_courses');
             const coursesData = await coursesResponse.json();
+            console.log(coursesData, 'courses data======');
+            
             document.getElementById('active-courses').textContent = coursesData?.data?.length;
         }
         
