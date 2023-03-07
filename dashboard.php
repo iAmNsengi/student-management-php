@@ -601,85 +601,46 @@ $profile = $user->getProfile();
     // Load data functions
     async function loadCourses() {
         try {
-            const activePanel = document.querySelector('.panel.active');
-            const panelId = activePanel?.id;
-            const response = await fetchAPI('view_courses');
+            const response = await fetch('api/endpoints.php?endpoint=view_courses');
+            const data = await response.json();
             
-            console.log('Courses response:', response); // Debug log
+            const coursesList = document.getElementById('manage-courses-list');
+            if (!coursesList) return;
 
-            if (response.success) {
-                if (panelId === 'manage-courses') {
-                    // Teacher view
-                    const coursesList = document.querySelector('#manage-courses-list');
-                    if (coursesList) {
-                        coursesList.innerHTML = `
-                            <table class="data-grid">
-                                <thead>
-                                    <tr>
-                                        <th>Course Name</th>
-                                        <th>Schedule</th>
-                                        <th>Enrolled Students</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    ${response.data.length ? response.data.map(course => `
-                                        <tr>
-                                            <td>${course.name}</td>
-                                            <td>${course.schedule || 'Not set'}</td>
-                                            <td>${course.enrolled_count || 0}</td>
-                                            <td class="action-buttons">
-                                                <button class="btn-edit" onclick="editCourse(${course.id})">Edit</button>
-                                                <button class="btn-delete" onclick="deleteCourse(${course.id})">Delete</button>
-                                            </td>
-                                        </tr>
-                                    `).join('') : '<tr><td colspan="4">No courses found</td></tr>'}
-                                </tbody>
-                            </table>
-                        `;
-                    }
-                } else if (panelId === 'my-courses') {
-                    // Student view
-                    const coursesList = document.querySelector('#courses-list');
-                    if (coursesList) {
-                        coursesList.innerHTML = `
-                            <table class="data-grid">
-                                <thead>
-                                    <tr>
-                                        <th>Course Name</th>
-                                        <th>Teacher</th>
-                                        <th>Schedule</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    ${response.data.length ? response.data.map(course => `
-                                        <tr>
-                                            <td>${course.name}</td>
-                                            <td>${course.teacher_name || 'Not assigned'}</td>
-                                            <td>${course.schedule || 'Not set'}</td>
-                                            <td class="action-buttons">
-                                                ${!course.is_enrolled ? 
-                                                    `<button class="btn-primary" onclick="enrollCourse(${course.id})">Enroll</button>` :
-                                                    `<span class="enrolled-badge">Enrolled</span>`
-                                                }
-                                            </td>
-                                        </tr>
-                                    `).join('') : '<tr><td colspan="4">No courses found</td></tr>'}
-                                </tbody>
-                            </table>
-                        `;
-                    }
-                }
+            if (data.success && data.data) {
+                coursesList.innerHTML = `
+                    <table class="data-grid">
+                        <thead>
+                            <tr>
+                                <th>Course Name</th>
+                                <th>Schedule</th>
+                                <th>Enrolled Students</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${data.data.map(course => `
+                                <tr>
+                                    <td>${course.name}</td>
+                                    <td>${course.schedule || 'Not set'}</td>
+                                    <td>${course.enrolled_count || 0}</td>
+                                    <td>
+                                        <button class="btn-delete" onclick="deleteCourse(${course.id})">
+                                            Delete
+                                        </button>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
             } else {
-                console.error('Failed to load courses:', response.error);
+                coursesList.innerHTML = '<p>No courses found</p>';
             }
         } catch (error) {
             console.error('Error loading courses:', error);
-            const coursesList = document.querySelector('#manage-courses-list, #courses-list');
-            if (coursesList) {
-                coursesList.innerHTML = '<p class="error">Error loading courses. Please try again.</p>';
-            }
+            document.getElementById('manage-courses-list').innerHTML = 
+                '<p class="error">Error loading courses. Please try again.</p>';
         }
     }
 
@@ -1275,23 +1236,39 @@ $profile = $user->getProfile();
     // Function to update profile
     async function updateProfile(event) {
         event.preventDefault();
-        const formData = new FormData(event.target);
-        
+        const fullNameInput = document.getElementById('edit-full-name');
+        const fullName = fullNameInput.value.trim();
+
+        if (!fullName) {
+            alert('Please enter your full name');
+            return;
+        }
+
         try {
-            const response = await fetchAPI('update_profile', {
+            const response = await fetch('api/endpoints.php?endpoint=update_profile', {
                 method: 'POST',
-                body: { full_name: formData.get('full_name') }
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                credentials: 'include',
+                body: JSON.stringify({ full_name: fullName })
             });
+
+            const result = await response.json();
             
-            if (response.success) {
+            if (result.success) {
+                // Update the UI immediately
+                const profileNameElement = document.getElementById('profile-name');
+                if (profileNameElement) {
+                    profileNameElement.textContent = result.data.full_name;
+                }
                 alert('Profile updated successfully');
-                loadProfile();
             } else {
-                throw new Error(response.error || 'Failed to update profile');
+                throw new Error(result.error || 'Failed to update profile');
             }
         } catch (error) {
-            console.error('Error updating profile:', error);
-            alert(error.message || 'Failed to update profile. Please try again.');
+            console.error('Error:', error);
+            alert('Failed to update profile: ' + error.message);
         }
     }
 
@@ -1318,111 +1295,69 @@ $profile = $user->getProfile();
     // Add these functions for course management
     async function editCourse(courseId) {
         try {
-            console.log('Editing course:', courseId);
-            const response = await fetchAPI(`view_course_details&course_id=${courseId}`);
-            
-            if (response.success) {
-                const course = response.data;
-                console.log('Course details:', course);
-                
-                // Populate the edit modal
-                document.getElementById('edit-course-id').value = course.id;
-                document.getElementById('edit-course-name').value = course.name;
-                document.getElementById('edit-course-schedule').value = course.schedule || '';
-                
-                // Show the modal
-                document.getElementById('editCourseModal').style.display = 'block';
-            }
-        } catch (error) {
-            console.error('Error loading course details:', error);
-            alert('Error loading course details: ' + error.message);
-        }
-    }
+            console.log('Editing course:', courseId); // Debug log
 
-    async function updateCourse(event) {
-        event.preventDefault();
-        
-        try {
-            const courseId = document.getElementById('edit-course-id').value;
-            const courseName = document.getElementById('edit-course-name').value;
-            const courseSchedule = document.getElementById('edit-course-schedule').value;
+            const courseName = prompt('Enter new course name:');
+            if (!courseName) return;
 
-            const courseData = {
-                id: courseId,
+            const courseSchedule = prompt('Enter new schedule:');
+            if (!courseSchedule) return;
+
+            const data = {
+                courseId: parseInt(courseId),
                 name: courseName,
                 schedule: courseSchedule
             };
 
-            console.log('Sending course data:', courseData);
+            console.log('Sending update data:', data); // Debug log
 
             const response = await fetchAPI('update_course', {
                 method: 'POST',
-                body: courseData
+                body: JSON.stringify(data)
             });
 
+            console.log('Update response:', response); // Debug log
+
             if (response.success) {
-                alert('Course updated successfully!');
-                document.getElementById('editCourseModal').style.display = 'none';
-                await loadCourses(); // Refresh the courses list
+                alert('Course updated successfully');
+                await loadCourses(); // Reload the courses list
             } else {
                 throw new Error(response.error || 'Failed to update course');
             }
         } catch (error) {
-            console.error('Error:', error);
-            alert('Failed to update course: ' + error.message);
-        }
-    }
-
-    // Add function to mark all students present
-    async function markAllAttendance() {
-        try {
-            const date = document.getElementById('attendance-date')?.value;
-            const courseId = document.getElementById('attendance-course')?.value;
-            
-            if (!date || !courseId) {
-                alert('Please select both date and course');
-                return;
-            }
-
-            const response = await fetchAPI('mark_all_attendance', {
-                method: 'POST',
-                body: JSON.stringify({
-                    course_id: courseId,
-                    date: date,
-                    status: 'present'
-                })
-            });
-
-            if (response.success) {
-                alert('All students marked present!');
-                loadStudentsForAttendance();
-            } else {
-                throw new Error(response.error || 'Failed to mark attendance');
-            }
-        } catch (error) {
-            console.error('Error:', error);
-            alert('Failed to mark attendance: ' + error.message);
+            console.error('Error updating course:', error);
+            alert('Error: ' + error.message);
         }
     }
 
     async function deleteCourse(courseId) {
-        if (!confirm('Are you sure you want to delete this course? This action cannot be undone.')) {
-            return;
-        }
-
         try {
-            const response = await fetchAPI('delete_course', {
+            if (!confirm('Are you sure you want to delete this course?')) {
+                return;
+            }
+
+            const response = await fetch('api/endpoints.php?endpoint=delete_course', {
                 method: 'POST',
-                body: JSON.stringify({
-                    course_id: courseId
-                })
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                credentials: 'include',
+                body: JSON.stringify({ courseId: courseId })
             });
 
-            if (response.success) {
-                alert('Course deleted successfully!');
-                loadCourses(); // Refresh the courses list
+            const result = await response.json();
+            
+            if (result.success) {
+                // Remove the course row immediately
+                const courseRow = document.querySelector(`tr[data-course-id="${courseId}"]`);
+                if (courseRow) {
+                    courseRow.remove();
+                }
+                alert('Course deleted successfully');
+                // Reload the courses list to ensure everything is up to date
+                await loadCourses();
             } else {
-                throw new Error(response.error || 'Failed to delete course');
+                throw new Error(result.error || 'Failed to delete course');
             }
         } catch (error) {
             console.error('Error:', error);
