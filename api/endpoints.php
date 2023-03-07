@@ -253,38 +253,56 @@ switch ($endpoint) {
 
     case 'view_courses':
         try {
-            if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
+            if (!isset($_SESSION['user_id'])) {
                 throw new Exception('Not authenticated');
             }
 
-            require_once "../modules/courses/Course.php";
-            $course = new Course($db);
+            if ($_SESSION['role'] === 'Student') {
+                // Get student's ID
+                $studentStmt = $db->prepare("SELECT id FROM Students WHERE user_id = ?");
+                $studentStmt->execute([$_SESSION['user_id']]);
+                $student = $studentStmt->fetch(PDO::FETCH_ASSOC);
 
-            if ($_SESSION['role'] === 'Teacher') {
-                $courses = $course->getTeacherCourses($_SESSION['user_id']);
+                if (!$student) {
+                    throw new Exception('Student not found');
+                }
+
+                // Get all courses with enrollment status
+                $query = "SELECT c.*, t.full_name as teacher_name,
+                         CASE WHEN sc.student_id IS NOT NULL THEN 1 ELSE 0 END as is_enrolled
+                         FROM Courses c
+                         JOIN Teachers t ON c.teacher_id = t.id
+                         LEFT JOIN Student_Courses sc ON c.id = sc.course_id 
+                         AND sc.student_id = ?
+                         ORDER BY c.name";
+                
+                $stmt = $db->prepare($query);
+                $stmt->execute([$student['id']]);
             } else {
-                $courses = $course->getCourses();
+                // For teachers, show their courses
+                $query = "SELECT c.*, t.full_name as teacher_name
+                         FROM Courses c
+                         JOIN Teachers t ON c.teacher_id = t.id
+                         WHERE c.teacher_id = ?
+                         ORDER BY c.name";
+                
+                $stmt = $db->prepare($query);
+                $stmt->execute([$_SESSION['user_id']]);
             }
 
-            // Make sure we're not outputting anything before the JSON
-            if (ob_get_length()) ob_clean();
+            $courses = $stmt->fetchAll(PDO::FETCH_ASSOC);
             
-            header('Content-Type: application/json');
             echo json_encode([
                 'success' => true,
                 'data' => $courses
             ]);
-            exit;
 
         } catch (Exception $e) {
-            if (ob_get_length()) ob_clean();
-            header('Content-Type: application/json');
             http_response_code(400);
             echo json_encode([
                 'success' => false,
                 'error' => $e->getMessage()
             ]);
-            exit;
         }
         break;
 
@@ -723,58 +741,53 @@ switch ($endpoint) {
 
     case 'enroll_course':
         try {
-            // Debug session information
-            error_log("Session data: " . print_r($_SESSION, true));
-            error_log("POST data: " . file_get_contents('php://input'));
-
-            if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
-                throw new Exception('User not authenticated');
-            }
-
-            if ($_SESSION['role'] !== 'Student') {
+            if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'Student') {
                 throw new Exception('Only students can enroll in courses');
             }
 
-            $data = json_decode(file_get_contents('php://input'), true);
+            $input = file_get_contents('php://input');
+            $data = json_decode($input, true);
+            error_log("Enrollment data received: " . print_r($data, true));
             
-            if (!isset($data['course_id'])) {
+            if (!isset($data['courseId'])) {
                 throw new Exception('Course ID is required');
             }
 
-            // First, get the student's ID from the Students table
-            $studentQuery = "SELECT id FROM Students WHERE user_id = :user_id";
-            $studentStmt = $db->prepare($studentQuery);
-            $studentStmt->bindValue(':user_id', $_SESSION['user_id'], PDO::PARAM_INT);
-            $studentStmt->execute();
-            
+            // Get student's ID
+            $studentStmt = $db->prepare("SELECT id FROM Students WHERE user_id = ?");
+            $studentStmt->execute([$_SESSION['user_id']]);
             $student = $studentStmt->fetch(PDO::FETCH_ASSOC);
+
             if (!$student) {
-                throw new Exception('Student record not found');
+                throw new Exception('Student not found');
             }
 
             // Check if already enrolled
-            $checkQuery = "SELECT 1 FROM Student_Courses 
-                          WHERE student_id = :student_id 
-                          AND course_id = :course_id";
-            
-            $checkStmt = $db->prepare($checkQuery);
-            $checkStmt->bindValue(':student_id', $student['id'], PDO::PARAM_INT);
-            $checkStmt->bindValue(':course_id', $data['course_id'], PDO::PARAM_INT);
-            $checkStmt->execute();
+            $checkStmt = $db->prepare("
+                SELECT student_id 
+                FROM Student_Courses 
+                WHERE student_id = ? AND course_id = ?
+            ");
+            $checkStmt->execute([$student['id'], $data['courseId']]);
             
             if ($checkStmt->fetch()) {
                 throw new Exception('Already enrolled in this course');
             }
 
-            // Enroll in course using the student's ID from Students table
-            $query = "INSERT INTO Student_Courses (student_id, course_id) 
-                     VALUES (:student_id, :course_id)";
+            // Check if course exists
+            $courseStmt = $db->prepare("SELECT id FROM Courses WHERE id = ?");
+            $courseStmt->execute([$data['courseId']]);
+            if (!$courseStmt->fetch()) {
+                throw new Exception('Course not found');
+            }
+
+            // Enroll in course
+            $enrollStmt = $db->prepare("
+                INSERT INTO Student_Courses (student_id, course_id) 
+                VALUES (?, ?)
+            ");
             
-            $stmt = $db->prepare($query);
-            $stmt->bindValue(':student_id', $student['id'], PDO::PARAM_INT);
-            $stmt->bindValue(':course_id', $data['course_id'], PDO::PARAM_INT);
-            
-            if ($stmt->execute()) {
+            if ($enrollStmt->execute([$student['id'], $data['courseId']])) {
                 echo json_encode([
                     'success' => true,
                     'message' => 'Successfully enrolled in course'
@@ -782,9 +795,10 @@ switch ($endpoint) {
             } else {
                 throw new Exception('Failed to enroll in course');
             }
+
         } catch (Exception $e) {
             error_log("Enrollment error: " . $e->getMessage());
-            http_response_code(403);
+            http_response_code(400);
             echo json_encode([
                 'success' => false,
                 'error' => $e->getMessage()

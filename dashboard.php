@@ -604,7 +604,7 @@ $profile = $user->getProfile();
             const response = await fetch('api/endpoints.php?endpoint=view_courses');
             const data = await response.json();
             
-            const coursesList = document.getElementById('manage-courses-list');
+            const coursesList = document.getElementById('courses-list');
             if (!coursesList) return;
 
             if (data.success && data.data) {
@@ -613,21 +613,24 @@ $profile = $user->getProfile();
                         <thead>
                             <tr>
                                 <th>Course Name</th>
+                                <th>Teacher</th>
                                 <th>Schedule</th>
-                                <th>Enrolled Students</th>
                                 <th>Action</th>
                             </tr>
                         </thead>
                         <tbody>
                             ${data.data.map(course => `
-                                <tr>
+                                <tr data-course-id="${course.id}">
                                     <td>${course.name}</td>
+                                    <td>${course.teacher_name}</td>
                                     <td>${course.schedule || 'Not set'}</td>
-                                    <td>${course.enrolled_count || 0}</td>
                                     <td>
-                                        <button class="btn-delete" onclick="deleteCourse(${course.id})">
-                                            Delete
-                                        </button>
+                                        ${course.is_enrolled ? 
+                                            '<span class="badge badge-success">Enrolled</span>' :
+                                            `<button class="btn-primary" onclick="enrollInCourse(${course.id})">
+                                                Enroll
+                                             </button>`
+                                        }
                                     </td>
                                 </tr>
                             `).join('')}
@@ -639,7 +642,7 @@ $profile = $user->getProfile();
             }
         } catch (error) {
             console.error('Error loading courses:', error);
-            document.getElementById('manage-courses-list').innerHTML = 
+            document.getElementById('courses-list').innerHTML = 
                 '<p class="error">Error loading courses. Please try again.</p>';
         }
     }
@@ -952,42 +955,30 @@ $profile = $user->getProfile();
 
     async function enrollInCourse(courseId) {
         try {
-            const response = await fetchAPI('enroll_course', {
+            const response = await fetch('api/endpoints.php?endpoint=enroll_course', {
                 method: 'POST',
-                body: JSON.stringify({ course_id: courseId })  // Ensure proper JSON formatting
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                credentials: 'include',
+                body: JSON.stringify({ courseId: courseId })
             });
 
-            if (response.success) {
-                const messageDiv = document.createElement('div');
-                messageDiv.className = 'alert alert-success';
-                messageDiv.innerHTML = 'Successfully enrolled in course!';
-                document.querySelector('.panel.active').insertBefore(messageDiv, document.querySelector('.panel.active').firstChild);
-                
-                // Remove message after 3 seconds
-                setTimeout(() => messageDiv.remove(), 3000);
-                
-                // Refresh the courses list
-                await loadCourses();
+            const result = await response.json();
+            
+            if (result.success) {
+                // Update the UI immediately
+                const actionCell = document.querySelector(`tr[data-course-id="${courseId}"] td:last-child`);
+                if (actionCell) {
+                    actionCell.innerHTML = '<span class="badge badge-success">Enrolled</span>';
+                }
+                alert('Successfully enrolled in course!');
             } else {
-                // Show error message
-                const messageDiv = document.createElement('div');
-                messageDiv.className = 'alert alert-danger';
-                messageDiv.innerHTML = response.error || 'Failed to enroll in course';
-                document.querySelector('.panel.active').insertBefore(messageDiv, document.querySelector('.panel.active').firstChild);
-                
-                // Remove message after 3 seconds
-                setTimeout(() => messageDiv.remove(), 3000);
+                throw new Error(result.error || 'Failed to enroll in course');
             }
         } catch (error) {
-            console.error('Enrollment error:', error);
-            // Show error message
-            const messageDiv = document.createElement('div');
-            messageDiv.className = 'alert alert-danger';
-            messageDiv.innerHTML = 'Failed to enroll in course. Please try again.';
-            document.querySelector('.panel.active').insertBefore(messageDiv, document.querySelector('.panel.active').firstChild);
-            
-            // Remove message after 3 seconds
-            setTimeout(() => messageDiv.remove(), 3000);
+            console.error('Error:', error);
+            alert('Failed to enroll in course: ' + error.message);
         }
     }
 
