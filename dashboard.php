@@ -743,7 +743,9 @@ $profile = $user->getProfile();
             
             console.log('Attendance data:', attendanceData); // Debug log
             
-            const attendanceList = document.querySelector('#manage-attendance-list');
+            const attendanceList = document.querySelector('#attendance-list');
+            console.log(attendanceList);
+            
             if (attendanceList) {
                 attendanceList.innerHTML = `
                     <table class="data-grid">
@@ -752,19 +754,16 @@ $profile = $user->getProfile();
                                 <th>Student</th>
                                 <th>Status</th>
                                 <th>Date</th>
-                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
-                            ${attendanceData.data && attendanceData.data.length ? 
+                            ${attendanceData?.data && attendanceData?.data?.length ? 
                                 attendanceData.data.map(record => `
                                     <tr>
                                         <td>${record.student_name}</td>
                                         <td>${record.status}</td>
                                         <td>${record.date}</td>
-                                        <td class="action-buttons">
-                                            <button class="btn-edit" onclick="editAttendance(${record.id})">Edit</button>
-                                        </td>
+                                       
                                     </tr>
                                 `).join('') 
                                 : '<tr><td colspan="4">No attendance records found</td></tr>'
