@@ -406,6 +406,7 @@ $profile = $user->getProfile();
 
         // For teachers - course selection for grading and attendance
         const courseFilter = document.getElementById('course-filter');
+        
         if (courseFilter) {
             courseFilter.addEventListener('change', (e) => {
                 loadStudentsForGrading(e.target.value);
@@ -603,18 +604,24 @@ $profile = $user->getProfile();
         try {
             const response = await fetch('api/endpoints.php?endpoint=view_courses');
             const data = await response.json();
-            
-            const coursesList = document.getElementById('courses-list');
+            console.log('Courses data:', data); // Debug log
+
+            // Get the correct list container based on role
+            const coursesList = document.getElementById('manage-courses-list') || document.getElementById('courses-list');
             if (!coursesList) return;
+            console.log(data?.data);
+            
 
             if (data.success && data.data) {
+                // Check if we're in the teacher view by looking for manage-courses-list
+                const isTeacherView = document.getElementById('manage-courses-list') !== null;
+
                 coursesList.innerHTML = `
                     <table class="data-grid">
                         <thead>
                             <tr>
                                 <th>Course Name</th>
-                                <th>Teacher</th>
-                                <th>Schedule</th>
+                                ${isTeacherView ? '<th>Schedule</th>' : '<th>Teacher</th><th>Schedule</th>'}
                                 <th>Action</th>
                             </tr>
                         </thead>
@@ -622,14 +629,17 @@ $profile = $user->getProfile();
                             ${data.data.map(course => `
                                 <tr data-course-id="${course.id}">
                                     <td>${course.name}</td>
-                                    <td>${course.teacher_name}</td>
-                                    <td>${course.schedule || 'Not set'}</td>
+                                    ${isTeacherView ? 
+                                        `<td>${course.schedule || 'Not set'}</td>` : 
+                                        `<td>${course.teacher_name}</td><td>${course.schedule || 'Not set'}</td>`
+                                    }
                                     <td>
-                                        ${course.is_enrolled ? 
-                                            '<span class="badge badge-success">Enrolled</span>' :
-                                            `<button class="btn-primary" onclick="enrollInCourse(${course.id})">
-                                                Enroll
-                                             </button>`
+                                        ${isTeacherView ? 
+                                            `<button class="btn-delete" onclick="deleteCourse(${course.id})">Delete</button>` :
+                                            (course.is_enrolled ? 
+                                                '<span class="badge badge-success">Enrolled</span>' :
+                                                `<button class="btn-primary" onclick="enrollInCourse(${course.id})">Enroll</button>`
+                                            )
                                         }
                                     </td>
                                 </tr>
@@ -642,8 +652,9 @@ $profile = $user->getProfile();
             }
         } catch (error) {
             console.error('Error loading courses:', error);
-            document.getElementById('courses-list').innerHTML = 
-                '<p class="error">Error loading courses. Please try again.</p>';
+            if (coursesList) {
+                coursesList.innerHTML = '<p class="error">Error loading courses. Please try again.</p>';
+            }
         }
     }
 
