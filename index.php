@@ -37,7 +37,7 @@ if (!isset($_SESSION['user_id'])) {
 <nav>
     <section class="flex_content">
         <figure class="logo fixed_flex">
-            <img src="https://i.postimg.cc/02NrFwT5/canva.png" alt="">
+            <img src="assets/images/logo.jpg" alt="">
             <figcaption>
                 <strong class="title">WSB</strong> Student Management
             </figcaption>
@@ -56,7 +56,7 @@ if (!isset($_SESSION['user_id'])) {
 <!--MENU-->
 <menu id="menu" class="side_menu">
     <a href="javascript:void(0)" class="close"><i class="fa fa-times"></i></a>
-    <strong class="fixed_flex logo"><img src="https://i.postimg.cc/02NrFwT5/canva.png" alt="Summit"  loading="lazy" /></strong>
+    <strong class="fixed_flex logo"><img src="assets/images/logo.jpg" alt="Summit"  loading="lazy" /></strong>
     <br>
     <ul>
         <li><a href="#">Home</a></li>
@@ -100,7 +100,7 @@ if (!isset($_SESSION['user_id'])) {
     <div class="top_footer flex">
         <section class="flex_content">
             <figure>
-                <img src="https://i.postimg.cc/KvwFLrVF/author.png" alt="" loading="lazy" />
+                <img src="assets/images/logo2.jpg" alt="" loading="lazy" />
             </figure>
         </section>
         <section class="flex_content padding_4x">
@@ -111,7 +111,7 @@ if (!isset($_SESSION['user_id'])) {
   <div class="footer_body flex">
     <section class="flex_content padding_1x">
       <figure class="logo fixed_flex">
-            <img src="https://i.postimg.cc/02NrFwT5/canva.png" alt="">
+            <img src="assets/images/logo.jpg" alt="">
             <figcaption>
                 <strong class="title">WSB</strong>Student Management
             </figcaption>
