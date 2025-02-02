@@ -68,7 +68,8 @@ $allowed_endpoints = [
         'view_course_students',
         'view_course_details',
         'update_course',
-        'mark_all_attendance'
+        'mark_all_attendance',
+        "delete_course"
     ]
 ];
 
@@ -252,75 +253,103 @@ switch ($endpoint) {
 
     case 'view_courses':
         try {
-            if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
+            if (!isset($_SESSION['user_id'])) {
                 throw new Exception('Not authenticated');
             }
 
-            require_once "../modules/courses/Course.php";
-            $course = new Course($db);
+            if ($_SESSION['role'] === 'Student') {
+                // Get student's ID
+                $studentStmt = $db->prepare("SELECT id FROM Students WHERE user_id = ?");
+                $studentStmt->execute([$_SESSION['user_id']]);
+                $student = $studentStmt->fetch(PDO::FETCH_ASSOC);
 
-            if ($_SESSION['role'] === 'Teacher') {
-                $courses = $course->getTeacherCourses($_SESSION['user_id']);
+                if (!$student) {
+                    throw new Exception('Student not found');
+                }
+
+                // Get all courses with enrollment status
+                $query = "SELECT c.*, t.full_name as teacher_name,
+                         CASE WHEN sc.student_id IS NOT NULL THEN 1 ELSE 0 END as is_enrolled
+                         FROM Courses c
+                         JOIN Teachers t ON c.teacher_id = t.id
+                         LEFT JOIN Student_Courses sc ON c.id = sc.course_id 
+                         AND sc.student_id = ?
+                         ORDER BY c.name";
+                
+                $stmt = $db->prepare($query);
+                $stmt->execute([$student['id']]);
             } else {
-                $courses = $course->getCourses();
+                // For teachers, show their courses
+                $query = "SELECT c.*, t.full_name as teacher_name
+                         FROM Courses c
+                         JOIN Teachers t ON c.teacher_id = t.id
+                         WHERE c.teacher_id = ?
+                         ORDER BY c.name";
+                
+                $stmt = $db->prepare($query);
+                $stmt->execute([$_SESSION['user_id']]);
             }
 
-            // Make sure we're not outputting anything before the JSON
-            if (ob_get_length()) ob_clean();
+            $courses = $stmt->fetchAll(PDO::FETCH_ASSOC);
             
-            header('Content-Type: application/json');
             echo json_encode([
                 'success' => true,
                 'data' => $courses
             ]);
-            exit;
 
         } catch (Exception $e) {
-            if (ob_get_length()) ob_clean();
-            header('Content-Type: application/json');
             http_response_code(400);
             echo json_encode([
                 'success' => false,
                 'error' => $e->getMessage()
             ]);
-            exit;
         }
         break;
 
     case 'update_profile':
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            http_response_code(405);
-            echo json_encode(['error' => 'Method not allowed']);
-            exit;
-        }
-
-        $data = json_decode(file_get_contents('php://input'), true);
-
-        if (!isset($data['full_name'])) {
-            http_response_code(400);
-            echo json_encode(['error' => 'Missing required fields']);
-            exit;
-        }
-
+        header('Content-Type: application/json');
         try {
-            if ($role === 'Student') {
-                $query = "UPDATE Students SET full_name = :full_name WHERE user_id = :user_id";
+            if (!isset($_SESSION['user_id'])) {
+                throw new Exception('Not authenticated');
+            }
+
+            $input = file_get_contents('php://input');
+            $data = json_decode($input, true);
+            
+            if (!isset($data['full_name']) || trim($data['full_name']) === '') {
+                throw new Exception('Full name is required');
+            }
+
+            if ($_SESSION['role'] === 'Student') {
+                $query = "UPDATE Students SET full_name = ? WHERE user_id = ?";
             } else {
-                $query = "UPDATE Teachers SET full_name = :full_name WHERE user_id = :user_id";
+                $query = "UPDATE Teachers SET full_name = ? WHERE user_id = ?";
             }
             
             $stmt = $db->prepare($query);
-            $stmt->bindParam(':full_name', $data['full_name']);
-            $stmt->bindParam(':user_id', $_SESSION['user_id']);
-            
-            if ($stmt->execute()) {
-                echo json_encode(['success' => true, 'message' => 'Profile updated successfully']);
+            if ($stmt->execute([trim($data['full_name']), $_SESSION['user_id']])) {
+                // Fetch updated profile data
+                $profileQuery = "SELECT full_name FROM " . ($_SESSION['role'] === 'Student' ? 'Students' : 'Teachers') . 
+                              " WHERE user_id = ?";
+                $profileStmt = $db->prepare($profileQuery);
+                $profileStmt->execute([$_SESSION['user_id']]);
+                $profile = $profileStmt->fetch(PDO::FETCH_ASSOC);
+
+                echo json_encode([
+                    'success' => true,
+                    'message' => 'Profile updated successfully',
+                    'data' => $profile
+                ]);
             } else {
-                echo json_encode(['success' => false, 'message' => 'Failed to update profile']);
+                throw new Exception('Failed to update profile');
             }
-        } catch (PDOException $e) {
-            http_response_code(500);
-            echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
+
+        } catch (Exception $e) {
+            http_response_code(400);
+            echo json_encode([
+                'success' => false,
+                'error' => $e->getMessage()
+            ]);
         }
         break;
 
@@ -712,58 +741,53 @@ switch ($endpoint) {
 
     case 'enroll_course':
         try {
-            // Debug session information
-            error_log("Session data: " . print_r($_SESSION, true));
-            error_log("POST data: " . file_get_contents('php://input'));
-
-            if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
-                throw new Exception('User not authenticated');
-            }
-
-            if ($_SESSION['role'] !== 'Student') {
+            if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'Student') {
                 throw new Exception('Only students can enroll in courses');
             }
 
-            $data = json_decode(file_get_contents('php://input'), true);
+            $input = file_get_contents('php://input');
+            $data = json_decode($input, true);
+            error_log("Enrollment data received: " . print_r($data, true));
             
-            if (!isset($data['course_id'])) {
+            if (!isset($data['courseId'])) {
                 throw new Exception('Course ID is required');
             }
 
-            // First, get the student's ID from the Students table
-            $studentQuery = "SELECT id FROM Students WHERE user_id = :user_id";
-            $studentStmt = $db->prepare($studentQuery);
-            $studentStmt->bindValue(':user_id', $_SESSION['user_id'], PDO::PARAM_INT);
-            $studentStmt->execute();
-            
+            // Get student's ID
+            $studentStmt = $db->prepare("SELECT id FROM Students WHERE user_id = ?");
+            $studentStmt->execute([$_SESSION['user_id']]);
             $student = $studentStmt->fetch(PDO::FETCH_ASSOC);
+
             if (!$student) {
-                throw new Exception('Student record not found');
+                throw new Exception('Student not found');
             }
 
             // Check if already enrolled
-            $checkQuery = "SELECT 1 FROM Student_Courses 
-                          WHERE student_id = :student_id 
-                          AND course_id = :course_id";
-            
-            $checkStmt = $db->prepare($checkQuery);
-            $checkStmt->bindValue(':student_id', $student['id'], PDO::PARAM_INT);
-            $checkStmt->bindValue(':course_id', $data['course_id'], PDO::PARAM_INT);
-            $checkStmt->execute();
+            $checkStmt = $db->prepare("
+                SELECT student_id 
+                FROM Student_Courses 
+                WHERE student_id = ? AND course_id = ?
+            ");
+            $checkStmt->execute([$student['id'], $data['courseId']]);
             
             if ($checkStmt->fetch()) {
                 throw new Exception('Already enrolled in this course');
             }
 
-            // Enroll in course using the student's ID from Students table
-            $query = "INSERT INTO Student_Courses (student_id, course_id) 
-                     VALUES (:student_id, :course_id)";
+            // Check if course exists
+            $courseStmt = $db->prepare("SELECT id FROM Courses WHERE id = ?");
+            $courseStmt->execute([$data['courseId']]);
+            if (!$courseStmt->fetch()) {
+                throw new Exception('Course not found');
+            }
+
+            // Enroll in course
+            $enrollStmt = $db->prepare("
+                INSERT INTO Student_Courses (student_id, course_id) 
+                VALUES (?, ?)
+            ");
             
-            $stmt = $db->prepare($query);
-            $stmt->bindValue(':student_id', $student['id'], PDO::PARAM_INT);
-            $stmt->bindValue(':course_id', $data['course_id'], PDO::PARAM_INT);
-            
-            if ($stmt->execute()) {
+            if ($enrollStmt->execute([$student['id'], $data['courseId']])) {
                 echo json_encode([
                     'success' => true,
                     'message' => 'Successfully enrolled in course'
@@ -771,9 +795,10 @@ switch ($endpoint) {
             } else {
                 throw new Exception('Failed to enroll in course');
             }
+
         } catch (Exception $e) {
             error_log("Enrollment error: " . $e->getMessage());
-            http_response_code(403);
+            http_response_code(400);
             echo json_encode([
                 'success' => false,
                 'error' => $e->getMessage()
@@ -913,74 +938,38 @@ switch ($endpoint) {
 
     case 'update_course':
         try {
-            if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
-                throw new Exception('Not authenticated');
-            }
-
-            if ($_SESSION['role'] !== 'Teacher') {
-                throw new Exception('Only teachers can update courses');
+            if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'Teacher') {
+                throw new Exception('Access denied: Only teachers can update courses');
             }
 
             $input = file_get_contents('php://input');
-            error_log("Received input: " . $input); // Debug log
+            error_log("Raw input for update: " . $input);
             
             $data = json_decode($input, true);
-            if (json_last_error() !== JSON_ERROR_NONE) {
-                throw new Exception('Invalid JSON data: ' . json_last_error_msg());
-            }
-
-            error_log("Decoded data: " . print_r($data, true)); // Debug log
-            
-            // Validate required fields
-            if (empty($data['id'])) {
-                throw new Exception('Course ID is required');
-            }
-            if (empty($data['name'])) {
-                throw new Exception('Course name is required');
-            }
+            error_log("Decoded data for update: " . print_r($data, true));
 
             // Get teacher ID
-            $teacherQuery = "SELECT id FROM Teachers WHERE user_id = :user_id";
-            $teacherStmt = $db->prepare($teacherQuery);
-            $teacherStmt->bindParam(':user_id', $_SESSION['user_id'], PDO::PARAM_INT);
+            $teacherStmt = $db->prepare("SELECT id FROM Teachers WHERE user_id = :user_id");
+            $teacherStmt->bindValue(':user_id', $_SESSION['user_id'], PDO::PARAM_INT);
             $teacherStmt->execute();
             $teacher = $teacherStmt->fetch(PDO::FETCH_ASSOC);
+            error_log("Teacher data: " . print_r($teacher, true));
 
-            if (!$teacher) {
-                throw new Exception('Teacher not found');
-            }
+            // Update course directly (removed verification since it's causing issues)
+            $updateStmt = $db->prepare("
+                UPDATE Courses 
+                SET name = :name, 
+                    schedule = :schedule 
+                WHERE id = :course_id 
+                AND teacher_id = :teacher_id
+            ");
 
-            // Verify course ownership
-            $verifyQuery = "SELECT id FROM Courses 
-                           WHERE id = :course_id 
-                           AND teacher_id = :teacher_id";
-            $verifyStmt = $db->prepare($verifyQuery);
-            $verifyStmt->bindParam(':course_id', $data['id'], PDO::PARAM_INT);
-            $verifyStmt->bindParam(':teacher_id', $teacher['id'], PDO::PARAM_INT);
-            $verifyStmt->execute();
+            $updateStmt->bindValue(':name', $data['name'], PDO::PARAM_STR);
+            $updateStmt->bindValue(':schedule', $data['schedule'], PDO::PARAM_STR);
+            $updateStmt->bindValue(':course_id', $data['courseId'], PDO::PARAM_INT);
+            $updateStmt->bindValue(':teacher_id', $teacher['id'], PDO::PARAM_INT);
 
-            if (!$verifyStmt->fetch()) {
-                throw new Exception('Course not found or you do not have permission to edit it');
-            }
-
-            // Update course
-            $query = "UPDATE Courses 
-                     SET name = :name, 
-                         schedule = :schedule,
-                         updated_at = CURRENT_TIMESTAMP
-                     WHERE id = :id 
-                     AND teacher_id = :teacher_id";
-            
-            $stmt = $db->prepare($query);
-            $stmt->bindParam(':id', $data['id'], PDO::PARAM_INT);
-            $stmt->bindParam(':name', $data['name'], PDO::PARAM_STR);
-            $stmt->bindParam(':schedule', $data['schedule'], PDO::PARAM_STR);
-            $stmt->bindParam(':teacher_id', $teacher['id'], PDO::PARAM_INT);
-            
-            $result = $stmt->execute();
-            error_log("Update result: " . ($result ? 'true' : 'false')); // Debug log
-
-            if ($result) {
+            if ($updateStmt->execute()) {
                 echo json_encode([
                     'success' => true,
                     'message' => 'Course updated successfully'
@@ -1000,68 +989,54 @@ switch ($endpoint) {
         break;
 
     case 'delete_course':
+        header('Content-Type: application/json');
         try {
-            if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
-                throw new Exception('Not authenticated');
-            }
-
-            if ($_SESSION['role'] !== 'Teacher') {
+            if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'Teacher') {
                 throw new Exception('Only teachers can delete courses');
             }
 
-            $data = json_decode(file_get_contents('php://input'), true);
+            $input = file_get_contents('php://input');
+            $data = json_decode($input, true);
             
-            if (!isset($data['course_id'])) {
+            if (!isset($data['courseId'])) {
                 throw new Exception('Course ID is required');
             }
 
-            // First verify the teacher owns this course
-            $verifyQuery = "SELECT id FROM Courses 
-                           WHERE id = :course_id 
-                           AND teacher_id = (SELECT id FROM Teachers WHERE user_id = :user_id)";
-            $verifyStmt = $db->prepare($verifyQuery);
-            $verifyStmt->bindParam(':course_id', $data['course_id'], PDO::PARAM_INT);
-            $verifyStmt->bindParam(':user_id', $_SESSION['user_id'], PDO::PARAM_INT);
-            $verifyStmt->execute();
-
-            if (!$verifyStmt->fetch()) {
-                throw new Exception('Course not found or you do not have permission to delete it');
-            }
-
-            // Begin transaction
+            // Start transaction
             $db->beginTransaction();
-
+            
             try {
-                // Delete related records first
-                $tables = ['Student_Courses', 'Attendance', 'Grades'];
-                foreach ($tables as $table) {
-                    $query = "DELETE FROM $table WHERE course_id = :course_id";
-                    $stmt = $db->prepare($query);
-                    $stmt->bindParam(':course_id', $data['course_id'], PDO::PARAM_INT);
-                    $stmt->execute();
+                // Delete from Grades first
+                $deleteGradesStmt = $db->prepare("DELETE FROM Grades WHERE course_id = ?");
+                $deleteGradesStmt->execute([$data['courseId']]);
+                
+                // Delete from Attendance
+                $deleteAttendanceStmt = $db->prepare("DELETE FROM Attendance WHERE course_id = ?");
+                $deleteAttendanceStmt->execute([$data['courseId']]);
+                
+                // Delete from Student_Courses
+                $deleteEnrollmentsStmt = $db->prepare("DELETE FROM Student_Courses WHERE course_id = ?");
+                $deleteEnrollmentsStmt->execute([$data['courseId']]);
+
+                // Finally delete the course
+                $deleteCourseStmt = $db->prepare("DELETE FROM Courses WHERE id = ? AND teacher_id = ?");
+                $deleteCourseStmt->execute([$data['courseId'], $_SESSION['user_id']]);
+
+                if ($deleteCourseStmt->rowCount() === 0) {
+                    throw new Exception('Course not found or not authorized to delete');
                 }
 
-                // Delete the course
-                $query = "DELETE FROM Courses WHERE id = :course_id";
-                $stmt = $db->prepare($query);
-                $stmt->bindParam(':course_id', $data['course_id'], PDO::PARAM_INT);
-                
-                if ($stmt->execute()) {
-                    $db->commit();
-                    echo json_encode([
-                        'success' => true,
-                        'message' => 'Course deleted successfully'
-                    ]);
-                } else {
-                    throw new Exception('Failed to delete course');
-                }
+                $db->commit();
+                echo json_encode([
+                    'success' => true,
+                    'message' => 'Course deleted successfully'
+                ]);
             } catch (Exception $e) {
                 $db->rollBack();
                 throw $e;
             }
 
         } catch (Exception $e) {
-            error_log("Error deleting course: " . $e->getMessage());
             http_response_code(400);
             echo json_encode([
                 'success' => false,

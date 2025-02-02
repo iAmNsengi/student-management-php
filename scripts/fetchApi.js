@@ -8,9 +8,7 @@ async function fetchAPI(endpoint, options = {}) {
       },
     });
 
-    // Log the raw response for debugging
     const responseText = await response.text();
-    console.log("Raw response:", responseText);
 
     try {
       const data = JSON.parse(responseText);
