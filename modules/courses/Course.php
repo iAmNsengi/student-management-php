@@ -47,9 +47,10 @@ class Course {
     
     public function getCourses() {
         try {
-            $query = "SELECT c.*, t.full_name as teacher_name 
+            $query = "SELECT c.*, t.full_name as teacher_name,
+                     (SELECT COUNT(*) FROM Student_Courses sc WHERE sc.course_id = c.id) as enrolled_count
                      FROM " . $this->table_name . " c 
-                     LEFT JOIN Teachers t ON c.teacher_id = t.user_id 
+                     JOIN Teachers t ON t.user_id = c.teacher_id 
                      ORDER BY c.name";
             
             $stmt = $this->conn->prepare($query);
@@ -57,15 +58,19 @@ class Course {
             
             return $stmt->fetchAll(PDO::FETCH_ASSOC);
         } catch(PDOException $e) {
+            error_log("Error getting courses: " . $e->getMessage());
             return [];
         }
     }
     
     public function getTeacherCourses($teacher_id) {
         try {
-            $query = "SELECT * FROM " . $this->table_name . " 
-                     WHERE teacher_id = :teacher_id 
-                     ORDER BY name";
+            $query = "SELECT c.*, t.full_name as teacher_name,
+                     (SELECT COUNT(*) FROM Student_Courses sc WHERE sc.course_id = c.id) as enrolled_count
+                     FROM " . $this->table_name . " c 
+                     JOIN Teachers t ON t.user_id = c.teacher_id
+                     WHERE c.teacher_id = :teacher_id 
+                     ORDER BY c.name";
             
             $stmt = $this->conn->prepare($query);
             $stmt->bindParam(":teacher_id", $teacher_id);
@@ -73,6 +78,7 @@ class Course {
             
             return $stmt->fetchAll(PDO::FETCH_ASSOC);
         } catch(PDOException $e) {
+            error_log("Error getting teacher courses: " . $e->getMessage());
             return [];
         }
     }
